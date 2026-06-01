@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Importar clientes antiguos · Musicala</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <div class="content" style="max-width:680px;margin:0 auto">
+    <div class="panel">
+      <h2>📥 Importar clientes antiguos</h2>
+      <p class="muted">Sube los contactos históricos del Excel a la temporada que elijas, con estado <strong>Antiguo</strong> para re-contactarlos.</p>
+      <p class="muted small">Debes iniciar sesión con un correo autorizado. Esto se ejecuta una sola vez por temporada.</p>
+
+      <div id="auth"></div>
+
+      <div id="panel" style="display:none">
+        <label style="margin:1rem 0;display:block">Importar a la temporada (ID)
+          <input id="temp" value="2026-junio" />
+        </label>
+        <p>Se importarán <strong id="n">0</strong> contactos.</p>
+        <button id="go" class="btn primary big">Importar ahora</button>
+        <pre id="log" style="background:#1f2330;color:#7CFC00;padding:1rem;border-radius:10px;margin-top:1rem;max-height:300px;overflow:auto;display:none"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, login, logout, onAuth, correoPermitido } from "../js/firebase.js";
+    import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { db } from "../js/firebase.js";
+
+    const $ = (s) => document.querySelector(s);
+    let datos = [];
+    fetch("./clientes-antiguos.json").then(r => r.json()).then(d => { datos = d; $("#n").textContent = d.length; });
+
+    onAuth((user) => {
+      if (user && correoPermitido(user.email)) {
+        $("#auth").innerHTML = `<p>✅ Conectado como <strong>${user.email}</strong> · <a id="out">salir</a></p>`;
+        $("#out").onclick = () => logout();
+        $("#panel").style.display = "block";
+      } else {
+        $("#panel").style.display = "none";
+        $("#auth").innerHTML = `<button id="in" class="btn primary">Entrar con Google</button>`;
+        $("#in").onclick = () => login();
+        if (user) { alert("Correo no autorizado: " + user.email); logout(); }
+      }
+    });
+
+    $("#go").onclick = async () => {
+      const temp = $("#temp").value.trim();
+      if (!temp) return alert("Pon el ID de la temporada");
+      const log = $("#log"); log.style.display = "block"; log.textContent = "";
+      const print = (m) => { log.textContent += m + "\n"; log.scrollTop = log.scrollHeight; };
+      $("#go").disabled = true;
+      let ok = 0;
+      for (const c of datos) {
+        const { _fuente, ...limpio } = c;
+        try {
+          await addDoc(collection(db, "temporadas", temp, "contactos"), { ...limpio, creado: serverTimestamp(), importado: true });
+          ok++;
+          if (ok % 25 === 0) print(`  …${ok} importados`);
+        } catch (e) { print("⚠️ Error en " + (c.estudiante || "?") + ": " + e.message); }
+      }
+      print(`✅ Listo. ${ok}/${datos.length} contactos importados a la temporada "${temp}".`);
+      $("#go").disabled = false;
+    };
+  </script>
+</body>
+</html>
