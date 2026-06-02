@@ -1,11 +1,17 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
-import { el, cop, toast, modal, confirmar } from "../ui.js";
-import { listar, crear, actualizar, eliminar } from "../db.js";
+import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js";
+import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas } from "../db.js";
 import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad } from "../catalogos.js";
 
 const SEMANAS = ["Semana 1", "Semana 2", "Semana 3", "Semana 4"];
 
 export default async function render(root, ctx) {
+  // Precios de la temporada (para autocompletar el valor según el paquete).
+  const temp = (await obtenerTemporada(ctx.temporadaId)) || {};
+  ctx._precios = temp.precios || [];
+  // Lista de temporadas (para poder asignar/mover cada inscrito).
+  ctx._temporadas = await listarTemporadas();
+
   root.append(el("div", { class: "panel-head" },
     el("h2", {}, "✅ Inscripciones"),
     el("div", { class: "right" },
@@ -43,10 +49,11 @@ export default async function render(root, ctx) {
     }
     const tabla = el("table", { class: "table" },
       el("thead", {}, el("tr", {},
-        ...["Estudiante", "Edad", "Grupo", "Paquete", "Semana(s)", "Horario", "Valor", "Pago", "Ruta", ""].map((h) => el("th", {}, h)))));
+        ...["Inscrito el", "Estudiante", "Edad", "Grupo", "Paquete", "Semana(s)", "Horario", "Valor", "Pago", "Ruta", ""].map((h) => el("th", {}, h)))));
     const tb = el("tbody", {});
     datos.forEach((d) => {
       tb.append(el("tr", {},
+        el("td", {}, d.fechaInscripcion ? fmtFecha(d.fechaInscripcion) : el("span", { class: "muted" }, "—")),
         el("td", {}, el("strong", {}, d.estudiante || "—")),
         el("td", {}, d.edad ?? ""),
         el("td", {}, d.grupo || ""),
@@ -83,11 +90,28 @@ function editar(ctx, dato, onSave) {
 
   const ruta = el("input", { type: "checkbox" }); if (d.ruta) ruta.checked = true;
 
+  // Selector de temporada: a cuál pertenece este inscrito (permite mover).
+  const temporadas = ctx._temporadas || [];
+  const selTemporada = el("select", {}, ...temporadas.map((t) => {
+    const o = el("option", { value: t.id }, t.nombre || t.id);
+    if (t.id === ctx.temporadaId) o.selected = true;
+    return o;
+  }));
+
+  // Fecha de inscripción: por defecto hoy en las nuevas.
+  const fecha = el("input", { type: "date", value: d.fechaInscripcion || hoyISO() });
+
+  // Lista de paquetes: usa los precios de la temporada si existen, si no el catálogo.
+  const precios = (ctx._precios && ctx._precios.length) ? ctx._precios : PAQUETES.map((p) => ({ concepto: p.nombre, valor: 0 }));
+  const nombresPaquete = precios.map((p) => p.concepto);
+
   const grid = el("div", { class: "form-grid" },
+    el("label", { class: "full" }, "Temporada", selTemporada),
+    el("label", {}, "Fecha de inscripción", fecha),
     el("label", {}, "Estudiante", inp("estudiante", { ph: "Nombre" })),
     el("label", {}, "Edad", inp("edad", { type: "number" })),
     el("label", {}, "Grupo", sel("grupo", ["", ...GRUPOS.map((g) => g.nombre)])),
-    el("label", {}, "Paquete", sel("paquete", ["", ...PAQUETES.map((p) => p.nombre)])),
+    el("label", {}, "Paquete", sel("paquete", ["", ...nombresPaquete])),
     el("label", {}, "Horario", inp("horario", { ph: "9:00 a.m. a 1:00 p.m." })),
     el("label", {}, "Valor", inp("valor", { type: "number", ph: "0" })),
     el("label", {}, "Estado de pago", sel("estadoPago", ESTADOS_PAGO)),
@@ -102,11 +126,17 @@ function editar(ctx, dato, onSave) {
     const g = (GRUPOS.find((x) => x.id === grupoPorEdad(f.edad.value)) || {}).nombre;
     if (g && !f.grupo.value) f.grupo.value = g;
   });
+  // Autocompletar el valor según el paquete elegido (precio de la temporada).
+  f.paquete.addEventListener("change", () => {
+    const p = precios.find((x) => x.concepto === f.paquete.value);
+    if (p && p.valor) f.valor.value = p.valor;
+  });
 
   modal(dato ? "Editar inscripción" : "Inscribir estudiante", grid, [
     { texto: "Cancelar", clase: "ghost" },
     { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
       const payload = {
+        fechaInscripcion: fecha.value || hoyISO(),
         estudiante: f.estudiante.value.trim(), edad: f.edad.value ? Number(f.edad.value) : null,
         grupo: f.grupo.value, paquete: f.paquete.value, horario: f.horario.value.trim(),
         valor: f.valor.value ? Number(f.valor.value) : 0, estadoPago: f.estadoPago.value,
@@ -115,10 +145,22 @@ function editar(ctx, dato, onSave) {
         semanas: [...semWrap.querySelectorAll("input:checked")].map((c) => c.value),
       };
       if (!payload.estudiante) { toast("Falta el nombre del estudiante", "error"); return; }
+      const destino = selTemporada.value || ctx.temporadaId;
       try {
-        if (dato) await actualizar(ctx.temporadaId, "inscripciones", dato.id, payload);
-        else await crear(ctx.temporadaId, "inscripciones", payload);
-        dlg.close(); toast("Guardado"); onSave && onSave();
+        if (destino !== ctx.temporadaId) {
+          // Mover/crear en otra temporada.
+          await crear(destino, "inscripciones", payload);
+          if (dato) await eliminar(ctx.temporadaId, "inscripciones", dato.id);
+          dlg.close();
+          toast(dato ? "Inscrito movido a otra temporada" : "Inscrito en la temporada elegida");
+        } else if (dato) {
+          await actualizar(ctx.temporadaId, "inscripciones", dato.id, payload);
+          dlg.close(); toast("Guardado");
+        } else {
+          await crear(ctx.temporadaId, "inscripciones", payload);
+          dlg.close(); toast("Guardado");
+        }
+        onSave && onSave();
       } catch (e) { toast("Error: " + e.message, "error"); }
     } },
   ]);

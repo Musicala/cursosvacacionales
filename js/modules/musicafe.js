@@ -1,9 +1,17 @@
 // Módulo Musicafé (onces): registro de consumo diario por estudiante y cuenta acumulada.
 import { el, cop, toast, modal, confirmar, hoyISO } from "../ui.js";
-import { listar, crear, eliminar, leerConfig } from "../db.js";
-import { MUSICAFE_PRODUCTOS } from "../catalogos.js";
+import { listar, crear, eliminar, leerConfig, guardarConfig } from "../db.js";
+import { MUSICAFE_PRODUCTOS, MUSICAFE_CATEGORIAS } from "../catalogos.js";
 
 let PRECIOS = MUSICAFE_PRODUCTOS;
+
+// Agrupa la lista de precios por categoría, respetando el orden de categorías.
+function porCategoria(lista) {
+  const grupos = {};
+  lista.forEach((p) => { const c = p.categoria || "Otros"; (grupos[c] = grupos[c] || []).push(p); });
+  const orden = [...MUSICAFE_CATEGORIAS, ...Object.keys(grupos).filter((c) => !MUSICAFE_CATEGORIAS.includes(c))];
+  return orden.filter((c) => grupos[c]).map((c) => ({ categoria: c, items: grupos[c] }));
+}
 
 export default async function render(root, ctx) {
   const cfg = await leerConfig();
@@ -12,6 +20,7 @@ export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
     el("h2", {}, "🍪 Musicafé (onces)"),
     el("div", { class: "right" },
+      el("button", { class: "btn ghost", onclick: () => editarPrecios(() => render((root.innerHTML = "", root), ctx)) }, "✏️ Editar precios"),
       el("button", { class: "btn ghost", onclick: () => verPrecios() }, "Ver precios"),
       el("button", { class: "btn primary", onclick: () => registrar(ctx, cargar) }, "+ Registrar consumo"),
     ),
@@ -84,12 +93,15 @@ function registrar(ctx, onSave) {
   const fecha = el("input", { type: "date", value: hoyISO() });
   const est = el("input", { type: "text", placeholder: "Nombre del estudiante" });
   const lista = el("div", { class: "prod-list" });
-  PRECIOS.forEach((p) => {
-    const qty = el("input", { type: "number", min: "0", value: "0", class: "qty" });
-    qty.dataset.nombre = p.nombre; qty.dataset.precio = p.precio;
-    qty.oninput = recalc;
-    lista.append(el("div", { class: "prod-row" },
-      el("span", {}, p.nombre), el("span", { class: "muted" }, cop(p.precio)), qty));
+  porCategoria(PRECIOS).forEach((g) => {
+    lista.append(el("div", { class: "prod-cat" }, g.categoria));
+    g.items.forEach((p) => {
+      const qty = el("input", { type: "number", min: "0", value: "0", class: "qty" });
+      qty.dataset.nombre = p.nombre; qty.dataset.precio = p.precio;
+      qty.oninput = recalc;
+      lista.append(el("div", { class: "prod-row" },
+        el("span", {}, p.nombre), el("span", { class: "muted" }, cop(p.precio)), qty));
+    });
   });
   const totalLbl = el("strong", {}, cop(0));
   function recalc() {
@@ -121,10 +133,50 @@ function registrar(ctx, onSave) {
 }
 
 function verPrecios() {
-  const body = el("div", { class: "table-wrap" }, el("table", { class: "table" },
-    el("thead", {}, el("tr", {}, el("th", {}, "Producto"), el("th", {}, "Precio"))),
-    el("tbody", {}, ...PRECIOS.map((p) => el("tr", {}, el("td", {}, p.nombre), el("td", {}, cop(p.precio)))))));
+  const body = el("div", {});
+  porCategoria(PRECIOS).forEach((g) => {
+    body.append(el("h4", {}, g.categoria));
+    body.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
+      el("tbody", {}, ...g.items.map((p) => el("tr", {}, el("td", {}, p.nombre), el("td", {}, cop(p.precio))))))));
+  });
   modal("Precios Musicafé", body, [{ texto: "Cerrar", clase: "primary" }]);
+}
+
+// Editor de la lista de precios (se guarda en config/global → vale para toda la app).
+function editarPrecios(onSave) {
+  const items = PRECIOS.map((p) => ({ ...p }));
+  const cont = el("div", { class: "precio-edit" });
+
+  function pintar() {
+    cont.innerHTML = "";
+    items.forEach((p, i) => {
+      const nombre = el("input", { type: "text", value: p.nombre || "", placeholder: "Producto" });
+      nombre.oninput = () => (items[i].nombre = nombre.value);
+      const cat = el("select", {}, ...MUSICAFE_CATEGORIAS.map((c) => {
+        const o = el("option", { value: c }, c); if ((p.categoria || MUSICAFE_CATEGORIAS[0]) === c) o.selected = true; return o;
+      }));
+      cat.onchange = () => (items[i].categoria = cat.value);
+      if (!items[i].categoria) items[i].categoria = cat.value;
+      const precio = el("input", { type: "number", value: p.precio || "", placeholder: "0", class: "precio-num" });
+      precio.oninput = () => (items[i].precio = Number(precio.value) || 0);
+      cont.append(el("div", { class: "precio-row4" }, nombre, cat, precio,
+        el("button", { class: "btn ghost small", onclick: () => { items.splice(i, 1); pintar(); } }, "🗑")));
+    });
+  }
+  pintar();
+  const add = el("button", { class: "btn ghost small", onclick: () => { items.push({ nombre: "", precio: 0, categoria: MUSICAFE_CATEGORIAS[0] }); pintar(); } }, "+ Agregar producto");
+
+  modal("Editar precios del Musicafé", el("div", {}, cont, add), [
+    { texto: "Cancelar", clase: "ghost" },
+    { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
+      const limpios = items.filter((p) => (p.nombre || "").trim());
+      try {
+        await guardarConfig({ musicafeProductos: limpios });
+        PRECIOS = limpios;
+        dlg.close(); toast("Precios actualizados"); onSave && onSave();
+      } catch (e) { toast("Error: " + e.message, "error"); }
+    } },
+  ]);
 }
 
 function del(ctx, dato, onSave) {

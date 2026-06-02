@@ -38,14 +38,31 @@ export const ESTADOS_PAGO = ["Pendiente", "Abono", "Pagado"];
 
 export const CANALES = ["WhatsApp", "Llamada", "Instagram", "Facebook", "Presencial", "Correo"];
 
-// Catálogo Musicafé (onces). Precios editables luego desde la app.
+// Categorías del Musicafé.
+export const MUSICAFE_CATEGORIAS = ["Snacks, galletas y pasabocas", "Bebidas"];
+
+// Catálogo Musicafé (onces) — valores por defecto. Editables desde la app (se guardan en config).
 export const MUSICAFE_PRODUCTOS = [
-  { nombre: "Papas", precio: 1500 },
-  { nombre: "Minichips", precio: 2000 },
-  { nombre: "Jugo", precio: 2500 },
-  { nombre: "Galletas", precio: 1500 },
-  { nombre: "Chocolatina", precio: 2000 },
-  { nombre: "Agua", precio: 1500 },
+  { nombre: "Galletas Tosh Cracker", precio: 1200, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Cremadas Tosh", precio: 1500, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Galletas Waffer Tosh", precio: 2000, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Rosquillas integrales", precio: 4000, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Barra Tosh", precio: 2200, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Papas fritas Khytos", precio: 1500, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Plátanos Khytos", precio: 1500, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Galletas Club Social", precio: 1200, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Submarino", precio: 1500, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Ponquecitos", precio: 1600, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Galletas Minichips", precio: 1800, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Galletas Oreo", precio: 2000, categoria: "Snacks, galletas y pasabocas" },
+  { nombre: "Leche saborizada", precio: 2400, categoria: "Bebidas" },
+  { nombre: "Avena", precio: 2400, categoria: "Bebidas" },
+  { nombre: "Agua Amese 600ml", precio: 2200, categoria: "Bebidas" },
+  { nombre: "Agua Amese 335ml", precio: 1800, categoria: "Bebidas" },
+  { nombre: "Jugo en caja", precio: 2200, categoria: "Bebidas" },
+  { nombre: "Crokan Crokan", precio: 1500, categoria: "Bebidas" },
+  { nombre: "Maní Nuthos", precio: 2700, categoria: "Bebidas" },
+  { nombre: "Maní La especial", precio: 1800, categoria: "Bebidas" },
 ];
 
 // Docentes (con su área principal). Editable luego.

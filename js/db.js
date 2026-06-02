@@ -21,6 +21,13 @@ export async function listarTemporadas() {
 export async function crearTemporada(id, data) {
   await setDoc(doc(db, "temporadas", id), { ...data, creada: serverTimestamp() }, { merge: true });
 }
+export async function actualizarTemporada(id, patch) {
+  await setDoc(doc(db, "temporadas", id), { ...patch, actualizada: serverTimestamp() }, { merge: true });
+}
+export async function obtenerTemporada(id) {
+  const d = await getDoc(doc(db, "temporadas", id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
 
 // ----- Helpers genéricos por subcolección dentro de una temporada -----
 function col(temporadaId, sub) {

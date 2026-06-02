@@ -1,0 +1,13 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+
+# Firebase local
+.firebase/
+.firebaserc
+firebase-debug.log
+
+# Node
+node_modules/

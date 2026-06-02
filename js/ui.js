@@ -35,6 +35,21 @@ export function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// "2026-06-09" -> "9 jun 2026"
+export function fmtFecha(iso) {
+  if (!iso) return "";
+  const [a, m, d] = iso.split("-");
+  const meses = ["", "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  return `${Number(d)} ${meses[Number(m)] || ""} ${a}`;
+}
+// versión corta "9 jun"
+export function fmtCorta(iso) {
+  if (!iso) return "";
+  const [, m, d] = iso.split("-");
+  const meses = ["", "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  return `${Number(d)} ${meses[Number(m)] || ""}`;
+}
+
 let toastTimer;
 export function toast(msg, tipo = "ok") {
   let t = $("#toast");

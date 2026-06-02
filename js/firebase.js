@@ -13,8 +13,11 @@ export const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
-export function login() {
-  return signInWithPopup(auth, provider);
+// Inicia sesión y devuelve la credencial de Google (sirve para entrar también
+// al otro proyecto sin pedir un segundo popup).
+export async function login() {
+  const result = await signInWithPopup(auth, provider);
+  return GoogleAuthProvider.credentialFromResult(result);
 }
 export function logout() {
   return signOut(auth);

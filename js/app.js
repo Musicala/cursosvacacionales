@@ -1,8 +1,9 @@
 import { onAuth, login, logout, correoPermitido } from "./firebase.js";
-import { $, el, toast } from "./ui.js";
+import { $, el, toast, fmtCorta } from "./ui.js";
 import { listarTemporadas, crearTemporada } from "./db.js";
 
 import dashboard from "./modules/dashboard.js";
+import estadisticas from "./modules/estadisticas.js";
 import contactos from "./modules/contactos.js";
 import inscripciones from "./modules/inscripciones.js";
 import horarios from "./modules/horarios.js";
@@ -10,6 +11,8 @@ import asistencia from "./modules/asistencia.js";
 import musicafe from "./modules/musicafe.js";
 import ruta from "./modules/ruta.js";
 import materiales from "./modules/materiales.js";
+import temporadaInfo, { formularioTemporada } from "./modules/temporada.js";
+import { conectarConCredencial } from "./base-general.js";
 
 const MODULOS = [
   { id: "dashboard",     nombre: "Tablero",        icono: "📊", render: dashboard },
@@ -20,6 +23,8 @@ const MODULOS = [
   { id: "musicafe",      nombre: "Musicafé",       icono: "🍪", render: musicafe },
   { id: "ruta",          nombre: "Ruta",           icono: "🚌", render: ruta },
   { id: "materiales",    nombre: "Materiales",     icono: "📦", render: materiales },
+  { id: "temporada",     nombre: "Info temporada", icono: "📅", render: temporadaInfo },
+  { id: "estadisticas",  nombre: "Estadísticas",   icono: "📈", render: estadisticas },
 ];
 
 const estado = {
@@ -49,7 +54,11 @@ function mostrarLogin() {
     el("h1", {}, "Cursos Vacacionales"),
     el("p", { class: "muted" }, "Panel de coordinación · Musicala"),
     el("button", { class: "btn primary big", onclick: async () => {
-      try { await login(); } catch (e) { toast("No se pudo iniciar sesión", "error"); }
+      try {
+        const cred = await login();
+        // Conecta también la base general con el mismo login (sin segundo popup).
+        if (cred) await conectarConCredencial(cred);
+      } catch (e) { toast("No se pudo iniciar sesión", "error"); }
     } }, "Entrar con Google"),
     el("p", { class: "muted small" }, "Acceso solo para correos autorizados."),
   );
@@ -91,7 +100,8 @@ function construirShell() {
     navegar(estado.moduloActivo);
   } });
   estado.temporadas.forEach((t) => {
-    const o = el("option", { value: t.id }, t.nombre || t.id);
+    const rango = t.fechaInicio ? ` (${fmtCorta(t.fechaInicio)}${t.fechaFin ? "–" + fmtCorta(t.fechaFin) : ""})` : "";
+    const o = el("option", { value: t.id }, (t.nombre || t.id) + rango);
     if (t.id === estado.temporadaId) o.selected = true;
     selTemp.append(o);
   });
@@ -113,17 +123,21 @@ function construirShell() {
 }
 
 function nuevaTemporada() {
-  const nombre = prompt("Nombre de la temporada (ej: Diciembre 2026):");
-  if (!nombre) return;
-  const id = nombre.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
-  const orden = Number(new Date().getFullYear() + "" + String(new Date().getMonth() + 1).padStart(2, "0"));
-  crearTemporada(id, { nombre: nombre.trim(), orden, activa: true }).then(async () => {
+  // Formulario compartido con el módulo "Info temporada" (nombre, fechas, etc.)
+  formularioTemporada(null, async (datos) => {
+    const id = (datos.nombre || "").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
+    if (!id) { toast("Ponle un nombre a la temporada", "error"); return false; }
+    if (estado.temporadas.find((t) => t.id === id)) { toast("Ya existe una temporada con ese nombre", "error"); return false; }
+    const orden = Number((datos.fechaInicio || "").replace(/-/g, "").slice(0, 6) ||
+      (new Date().getFullYear() + "" + String(new Date().getMonth() + 1).padStart(2, "0")));
+    await crearTemporada(id, { ...datos, orden, activa: true });
     estado.temporadas = await listarTemporadas();
     estado.temporadaId = id;
     localStorage.setItem("temporadaId", id);
     construirShell();
-    navegar(estado.moduloActivo);
+    navegar("temporada");
     toast("Temporada creada");
+    return true;
   });
 }
 

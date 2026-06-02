@@ -2,14 +2,20 @@
 import { el, esc, toast, modal, confirmar } from "../ui.js";
 import { listar, crear, actualizar, eliminar } from "../db.js";
 import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS } from "../catalogos.js";
+import { estaConfigurada, onAuthBG, loginBG, usuarioBG, traerVacacionales } from "../base-general.js";
+import { buscarDuplicado } from "../dedup.js";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
     el("h2", {}, "📇 Contactos"),
     el("div", { class: "right" },
-      el("button", { class: "btn primary", onclick: () => editar(ctx, null) }, "+ Nuevo contacto"),
+      el("button", { class: "btn primary", onclick: () => editar(ctx, null, cargar) }, "+ Nuevo contacto"),
     ),
   ));
+
+  // Aviso/estado de la sincronización con la base general.
+  const bgAviso = el("div", { class: "panel bg-aviso", style: "display:none" });
+  root.append(bgAviso);
 
   const filtros = el("div", { class: "filters" });
   const fEstado = el("select", {});
@@ -30,6 +36,51 @@ export default async function render(root, ctx) {
   async function cargar() {
     datos = await listar(ctx.temporadaId, "contactos");
     pintar();
+  }
+
+  // ---- Sincronización con la base general (Listado = Vacacionales) ----
+  async function sincronizarBG() {
+    if (!estaConfigurada()) return; // todavía no han pegado la config del otro proyecto
+    try {
+      const remotos = await traerVacacionales();
+      // Evitar duplicados: por sourceId, teléfono, correo o nombre (con/ sin tildes).
+      const yaExisten = [...datos];   // se va actualizando para no duplicar dentro del mismo lote
+      const nuevos = [];
+      for (const r of remotos) {
+        if (buscarDuplicado(r, yaExisten)) continue;
+        nuevos.push(r);
+        yaExisten.push(r);
+      }
+      for (const n of nuevos) await crear(ctx.temporadaId, "contactos", n);
+      if (nuevos.length) { toast(`${nuevos.length} contacto(s) traídos de la base general`); await cargar(); }
+      bgAviso.style.display = "block";
+      bgAviso.innerHTML = "";
+      bgAviso.append(el("div", { class: "muted small" },
+        `✅ Base general conectada (${usuarioBG()?.email || ""}). ${remotos.length} con etiqueta Vacacionales · ${nuevos.length} nuevos.`));
+    } catch (e) {
+      bgAviso.style.display = "block";
+      bgAviso.innerHTML = "";
+      bgAviso.append(el("div", { class: "muted small" }, "No se pudo leer la base general: " + e.message));
+    }
+  }
+
+  if (estaConfigurada()) {
+    // Si ya hay sesión guardada del otro proyecto, sincroniza solo; si no, ofrece conectar.
+    let primera = true;
+    onAuthBG((u) => {
+      if (u) { sincronizarBG(); }
+      else if (primera) {
+        bgAviso.style.display = "block";
+        bgAviso.innerHTML = "";
+        bgAviso.append(
+          el("span", {}, "🔗 Conecta la base general para traer automáticamente los de etiqueta Vacacionales. "),
+          el("button", { class: "btn small", onclick: async () => {
+            try { await loginBG(); } catch (e) { toast("No se pudo conectar: " + e.message, "error"); }
+          } }, "Conectar base general"),
+        );
+      }
+      primera = false;
+    });
   }
   function pintar() {
     const q = fQ.value.trim().toLowerCase();
@@ -137,11 +188,26 @@ function editar(ctx, dato, onSave) {
       };
       if (!payload.estudiante && !payload.acudiente) { toast("Pon al menos un nombre", "error"); return; }
       try {
-        if (dato) await actualizar(ctx.temporadaId, "contactos", dato.id, payload);
-        else await crear(ctx.temporadaId, "contactos", payload);
-        dlg.close();
-        toast("Guardado");
-        onSave && onSave();
+        if (dato) {
+          await actualizar(ctx.temporadaId, "contactos", dato.id, payload);
+          dlg.close(); toast("Guardado"); onSave && onSave();
+          return;
+        }
+        // Crear: revisar duplicados (nombre, correo o teléfono).
+        const existentes = await listar(ctx.temporadaId, "contactos");
+        const dup = buscarDuplicado(payload, existentes);
+        if (dup) {
+          confirmar(
+            `⚠️ Parece que ya existe: "${dup.estudiante || dup.acudiente}"` +
+            (dup.celular ? ` (cel ${dup.celular})` : "") + ". ¿Crear de todas formas?",
+            async () => {
+              await crear(ctx.temporadaId, "contactos", payload);
+              dlg.close(); toast("Creado"); onSave && onSave();
+            });
+          return;
+        }
+        await crear(ctx.temporadaId, "contactos", payload);
+        dlg.close(); toast("Guardado"); onSave && onSave();
       } catch (e) { toast("Error: " + e.message, "error"); }
     } },
   ]);
