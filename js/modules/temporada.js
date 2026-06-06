@@ -2,7 +2,7 @@
 // Guarda todo en el documento de la temporada -> queda como histórico por temporada.
 import { el, cop, toast, modal, fmtFecha, fmtCorta } from "../ui.js";
 import { obtenerTemporada, actualizarTemporada } from "../db.js";
-import { PAQUETES, RUTA_MINIMO } from "../catalogos.js";
+import { PAQUETES, RUTA_MINIMO, DIAS, DIAS_POSIBLES, NUM_SEMANAS_DEFAULT } from "../catalogos.js";
 
 // Precios por defecto (concepto + valor) para una temporada nueva.
 function preciosPorDefecto() {
@@ -101,6 +101,17 @@ export function formularioTemporada(t, onSave) {
 
   const nombreInput = inp("nombre", { ph: "Se arma solo con las fechas (ej: 9 jun – 6 ago 2026)" });
 
+  // ----- Configuración de calendario: número de semanas y días de clase -----
+  const numSemanas = el("input", { type: "number", min: "1", max: "12", placeholder: String(NUM_SEMANAS_DEFAULT) });
+  numSemanas.value = d.numSemanas || NUM_SEMANAS_DEFAULT;
+
+  const diasActuales = (Array.isArray(d.dias) && d.dias.length) ? d.dias : DIAS;
+  const diasChecks = DIAS_POSIBLES.map((dia) => {
+    const c = el("input", { type: "checkbox", value: dia });
+    if (diasActuales.includes(dia)) c.checked = true;
+    return el("label", { class: "check" }, c, " " + dia);
+  });
+
   // El nombre se genera a partir del rango de fechas (estilo elegido por Musicala).
   function nombreDesdeFechas() {
     const i = f.fechaInicio.value, fin = f.fechaFin.value;
@@ -119,7 +130,11 @@ export function formularioTemporada(t, onSave) {
       el("label", {}, "Valor de la ruta", inp("valorRuta", { type: "number", ph: "0" })),
       el("label", {}, "Fecha de inicio", inp("fechaInicio", { type: "date" })),
       el("label", {}, "Fecha de finalización", inp("fechaFin", { type: "date" })),
+      el("label", {}, "Número de semanas", numSemanas),
     ),
+    el("h4", {}, "🗓️ Días de clase"),
+    el("p", { class: "muted small" }, "Determina las columnas del horario y las opciones de día."),
+    el("div", { class: "checks" }, ...diasChecks),
     el("h4", {}, "💲 Precios de los paquetes"),
     filasPrecios, addPrecio,
     el("label", { class: "block-label" }, "🏷️ Descuentos y promociones", descuentos),
@@ -138,6 +153,11 @@ export function formularioTemporada(t, onSave) {
         fechaInicio: f.fechaInicio.value || "",
         fechaFin: f.fechaFin.value || "",
         valorRuta: f.valorRuta.value ? Number(f.valorRuta.value) : 0,
+        numSemanas: Number(numSemanas.value) > 0 ? Number(numSemanas.value) : NUM_SEMANAS_DEFAULT,
+        dias: (() => {
+          const sel = diasChecks.map((l) => l.querySelector("input")).filter((c) => c.checked).map((c) => c.value);
+          return sel.length ? sel : DIAS;
+        })(),
         precios: precios.filter((p) => p.concepto.trim()),
         descuentos: descuentos.value.trim(),
         notas: notas.value.trim(),

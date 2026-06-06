@@ -1,9 +1,7 @@
 // Módulo Materiales: lista de insumos por taller/docente para alistar salones.
 import { el, toast, modal, confirmar } from "../ui.js";
 import { listar, crear, actualizar, eliminar } from "../db.js";
-import { AREAS, DIAS } from "../catalogos.js";
-
-const SEMANAS = ["Semana 1", "Semana 2", "Semana 3", "Semana 4"];
+import { AREAS, semanasDe, diasDe } from "../catalogos.js";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
@@ -37,6 +35,8 @@ export default async function render(root, ctx) {
 }
 
 function editar(ctx, dato, onSave) {
+  const SEMANAS = semanasDe(ctx.temporada);
+  const DIAS = diasDe(ctx.temporada);
   const d = dato || {};
   const f = {};
   const inp = (k, ph) => { const i = el("input", { type: "text", placeholder: ph || "" }); if (d[k] != null) i.value = d[k]; f[k] = i; return i; };

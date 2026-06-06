@@ -1,14 +1,14 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
 import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js";
 import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas } from "../db.js";
-import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad } from "../catalogos.js";
-
-const SEMANAS = ["Semana 1", "Semana 2", "Semana 3", "Semana 4"];
+import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe } from "../catalogos.js";
 
 export default async function render(root, ctx) {
   // Precios de la temporada (para autocompletar el valor según el paquete).
   const temp = (await obtenerTemporada(ctx.temporadaId)) || {};
   ctx._precios = temp.precios || [];
+  // Semanas configuradas para esta temporada (ver "Info temporada").
+  ctx._semanas = semanasDe(temp);
   // Lista de temporadas (para poder asignar/mover cada inscrito).
   ctx._temporadas = await listarTemporadas();
 
@@ -86,7 +86,7 @@ function editar(ctx, dato, onSave) {
   const sel = (k, ops) => { const s = el("select", {}, ...ops.map((o) => { const op = el("option", { value: o }, o || "—"); if (d[k] === o) op.selected = true; return op; })); f[k] = s; return s; };
 
   const semWrap = el("div", { class: "chips-input" });
-  SEMANAS.forEach((s) => { const c = el("input", { type: "checkbox", value: s }); if ((d.semanas || []).includes(s)) c.checked = true; semWrap.append(el("label", { class: "chk" }, c, s)); });
+  (ctx._semanas || []).forEach((s) => { const c = el("input", { type: "checkbox", value: s }); if ((d.semanas || []).includes(s)) c.checked = true; semWrap.append(el("label", { class: "chk" }, c, s)); });
 
   const ruta = el("input", { type: "checkbox" }); if (d.ruta) ruta.checked = true;
 

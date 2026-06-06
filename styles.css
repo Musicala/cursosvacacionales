@@ -67,6 +67,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri);border-colo
 .form-grid .full{grid-column:1/-1}
 .chk{flex-direction:row;align-items:center;gap:.4rem;color:var(--ink)}
 .chips-input{display:flex;gap:.8rem;flex-wrap:wrap}
+.checks{display:flex;gap:.4rem 1rem;flex-wrap:wrap}
+label.check,.checks .check{flex-direction:row;align-items:center;gap:.4rem;color:var(--ink);font-weight:500}
+label.check input,.checks .check input{width:auto}
 
 /* ---- Tables ---- */
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:.6rem}
@@ -78,6 +81,24 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri);border-colo
 .table tr.done td{opacity:.55;text-decoration:line-through}
 .table tr.total-row td{background:#faf8ff;font-size:1rem}
 .row-actions{display:flex;gap:.3rem;white-space:nowrap}
+
+/* ---- Vista horario (rejilla tipo colegio) ---- */
+.btn-group{display:flex;gap:.3rem;align-self:flex-end}
+.horario-titulo{margin:1rem 0 .2rem;color:var(--ink)}
+.horario-titulo:first-child{margin-top:0}
+.table.horario{table-layout:fixed}
+.table.horario th,.table.horario td{text-align:center;border:1px solid var(--line);width:18%}
+.table.horario th:first-child,.table.horario td:first-child{width:10%;text-align:left}
+.table.horario td.h-vacia{background:#fbfaff}
+.table.horario td.h-celda{padding:.35rem;vertical-align:top}
+.h-clase{background:#f3effe;border:1px solid #e3d9fb;border-radius:8px;padding:.4rem .5rem;
+  margin-bottom:.35rem;cursor:pointer;text-align:left;transition:background .12s}
+.h-clase:last-child{margin-bottom:0}
+.h-clase:hover{background:#e9e0fc}
+.h-area{font-weight:700;color:var(--pri);font-size:.82rem}
+.h-taller{font-size:.78rem;color:var(--ink)}
+.h-doc{font-size:.8rem;color:var(--ink);font-weight:600;margin-top:.15rem}
+.h-salon{font-size:.74rem;color:var(--muted)}
 
 /* ---- Pills / estados ---- */
 .pill{display:inline-block;padding:.18rem .6rem;border-radius:999px;font-size:.76rem;

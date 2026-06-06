@@ -81,6 +81,28 @@ export const DOCENTES = [
 
 export const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 
+// Días posibles de clase (para elegir en la configuración de la temporada).
+export const DIAS_POSIBLES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+// Número de semanas por defecto de un curso vacacional.
+export const NUM_SEMANAS_DEFAULT = 4;
+
+// Genera ["Semana 1", ... "Semana n"].
+export function semanasLista(n) {
+  const total = Number(n) > 0 ? Number(n) : NUM_SEMANAS_DEFAULT;
+  return Array.from({ length: total }, (_, i) => `Semana ${i + 1}`);
+}
+
+// Semanas configuradas para una temporada (usa numSemanas del documento, o el valor por defecto).
+export function semanasDe(temporada) {
+  return semanasLista(temporada && temporada.numSemanas);
+}
+
+// Días de clase configurados para una temporada (usa dias del documento, o Lunes-Viernes).
+export function diasDe(temporada) {
+  return temporada && Array.isArray(temporada.dias) && temporada.dias.length ? temporada.dias : DIAS;
+}
+
 // Mínimo de estudiantes para que la ruta sea viable.
 export const RUTA_MINIMO = 12;
 
