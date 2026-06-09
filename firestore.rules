@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Solo estos correos pueden leer/escribir.
-    function permitido() {
+    // Coordinación: lectura y escritura total.
+    function esAdmin() {
       return request.auth != null && request.auth.token.email in [
         "musicalaasesor@gmail.com",
         "imusicala@gmail.com",
@@ -10,8 +10,29 @@ service cloud.firestore {
         "alekcaballeromusic@gmail.com"
       ];
     }
+
+    // Correos de docentes registrados (campo plano guardado desde la app).
+    function correosDocentes() {
+      return get(/databases/$(database)/documents/config/global).data.get('docentesCorreos', []);
+    }
+
+    // Docente: si su correo está en la lista de docentes.
+    function esDocente() {
+      return request.auth != null
+        && request.auth.token.email.lower() in correosDocentes();
+    }
+
+    // Subcolecciones operativas que el docente SÍ puede editar.
+    match /temporadas/{temporadaId}/{sub}/{docId} {
+      allow read: if esAdmin() || esDocente();
+      allow write: if esAdmin()
+        || (esDocente() && sub in ['asistencia', 'musicafe', 'materiales']);
+    }
+
+    // Todo lo demás: docente solo lectura, coordinación escribe.
     match /{document=**} {
-      allow read, write: if permitido();
+      allow read: if esAdmin() || esDocente();
+      allow write: if esAdmin();
     }
   }
 }

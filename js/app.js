@@ -11,8 +11,10 @@ import asistencia from "./modules/asistencia.js";
 import musicafe from "./modules/musicafe.js";
 import ruta from "./modules/ruta.js";
 import materiales from "./modules/materiales.js";
+import musipuntos from "./modules/musipuntos.js";
 import temporadaInfo, { formularioTemporada } from "./modules/temporada.js";
 import { conectarConCredencial } from "./base-general.js";
+import { leerConfig } from "./db.js";
 
 const MODULOS = [
   { id: "dashboard",     nombre: "Tablero",        icono: "📊", render: dashboard },
@@ -23,28 +25,65 @@ const MODULOS = [
   { id: "musicafe",      nombre: "Musicafé",       icono: "🍪", render: musicafe },
   { id: "ruta",          nombre: "Ruta",           icono: "🚌", render: ruta },
   { id: "materiales",    nombre: "Materiales",     icono: "📦", render: materiales },
+  { id: "musipuntos",    nombre: "Musipuntos",     icono: "⭐", render: musipuntos },
   { id: "temporada",     nombre: "Info temporada", icono: "📅", render: temporadaInfo },
   { id: "estadisticas",  nombre: "Estadísticas",   icono: "📈", render: estadisticas },
 ];
 
+// Módulos que puede ver el rol Docente (en este orden).
+const MODULOS_DOCENTE = ["horarios", "asistencia", "musicafe", "materiales", "musipuntos"];
+
 const estado = {
   usuario: null,
+  rol: "admin",          // "admin" | "docente"
+  docente: null,         // registro del docente si rol === "docente"
   temporadaId: localStorage.getItem("temporadaId") || null,
   temporadas: [],
   moduloActivo: "dashboard",
 };
 
+// Módulos visibles según el rol actual.
+function modulosVisibles() {
+  if (estado.rol === "docente") return MODULOS.filter((m) => MODULOS_DOCENTE.includes(m.id));
+  return MODULOS;
+}
+
 // ---------- Arranque / autenticación ----------
 onAuth(async (user) => {
   if (!user) return mostrarLogin();
-  if (!correoPermitido(user.email)) {
-    toast("Ese correo no tiene acceso: " + user.email, "error");
-    await logout();
-    return mostrarLogin();
+  const correo = (user.email || "").toLowerCase();
+
+  if (correoPermitido(correo)) {
+    estado.rol = "admin";
+    estado.docente = null;
+  } else {
+    // ¿Es un docente registrado? (su correo está en config/global → docentes).
+    const docente = await buscarDocentePorCorreo(correo);
+    if (!docente) {
+      toast("Ese correo no tiene acceso: " + user.email, "error");
+      await logout();
+      return mostrarLogin();
+    }
+    estado.rol = "docente";
+    estado.docente = docente;
+    // El docente arranca en su horario (no tiene tablero).
+    estado.moduloActivo = "horarios";
   }
+
   estado.usuario = user;
   await iniciarApp();
 });
+
+// Busca en la configuración un docente cuyo correo coincida.
+async function buscarDocentePorCorreo(correo) {
+  try {
+    const cfg = await leerConfig();
+    const docs = (cfg && Array.isArray(cfg.docentes)) ? cfg.docentes : [];
+    return docs.find((d) => (d.correo || "").toLowerCase() === correo) || null;
+  } catch {
+    return null;
+  }
+}
 
 function mostrarLogin() {
   estado.usuario = null;
@@ -67,10 +106,20 @@ function mostrarLogin() {
 
 async function iniciarApp() {
   estado.temporadas = await listarTemporadas();
-  if (!estado.temporadas.length) {
-    // Crear una temporada inicial automáticamente.
+  if (!estado.temporadas.length && estado.rol === "admin") {
+    // Crear una temporada inicial automáticamente (solo coordinación).
     await crearTemporada("2026-junio", { nombre: "Junio 2026", orden: 202606, activa: true });
     estado.temporadas = await listarTemporadas();
+  }
+  if (!estado.temporadas.length) {
+    // Sin temporadas (p. ej. un docente entra antes de que coordinación cree una).
+    document.body.innerHTML = "";
+    document.body.append(el("div", { class: "login-wrap" },
+      el("div", { class: "login-card" },
+        el("h1", {}, "Aún no hay temporadas"),
+        el("p", { class: "muted" }, "Pídele a coordinación que cree la temporada para ver tu horario."),
+        el("button", { class: "btn ghost", onclick: () => logout() }, "Salir"))));
+    return;
   }
   if (!estado.temporadaId || !estado.temporadas.find((t) => t.id === estado.temporadaId)) {
     estado.temporadaId = estado.temporadas[0].id;
@@ -88,7 +137,7 @@ function construirShell() {
       el("img", { src: "logo.png", alt: "Musicala" }),
       el("div", {}, el("strong", {}, "Vacacionales"), el("div", { class: "muted small" }, "Musicala")),
     ),
-    ...MODULOS.map((m) => el("a", {
+    ...modulosVisibles().map((m) => el("a", {
       class: "side-link", "data-mod": m.id,
       onclick: () => navegar(m.id),
     }, el("span", { class: "ico" }, m.icono), el("span", {}, m.nombre))),
@@ -109,9 +158,14 @@ function construirShell() {
   const topbar = el("header", { class: "topbar" },
     el("div", { class: "top-left" },
       el("span", { class: "muted small" }, "Temporada:"), selTemp,
-      el("button", { class: "btn ghost small", title: "Nueva temporada", onclick: nuevaTemporada }, "+ Temporada"),
+      estado.rol === "admin"
+        ? el("button", { class: "btn ghost small", title: "Nueva temporada", onclick: nuevaTemporada }, "+ Temporada")
+        : null,
     ),
     el("div", { class: "top-right" },
+      estado.rol === "docente"
+        ? el("span", { class: "pill" }, "Docente · " + (estado.docente?.nombre || ""))
+        : null,
       el("span", { class: "muted small" }, estado.usuario.email),
       el("button", { class: "btn ghost small", onclick: () => logout() }, "Salir"),
     ),
@@ -143,16 +197,21 @@ function nuevaTemporada() {
 
 // ---------- Router ----------
 function navegar(modId) {
-  estado.moduloActivo = modId;
-  const mod = MODULOS.find((m) => m.id === modId) || MODULOS[0];
+  const visibles = modulosVisibles();
+  // Si el rol no puede ver el módulo pedido, cae al primero permitido.
+  let mod = visibles.find((m) => m.id === modId);
+  if (!mod) mod = visibles[0];
+  estado.moduloActivo = mod.id;
   document.querySelectorAll(".side-link").forEach((a) =>
-    a.classList.toggle("active", a.getAttribute("data-mod") === modId));
+    a.classList.toggle("active", a.getAttribute("data-mod") === mod.id));
   const content = $("#content");
   content.innerHTML = "";
   const ctx = {
     temporadaId: estado.temporadaId,
     temporada: estado.temporadas.find((t) => t.id === estado.temporadaId),
     usuario: estado.usuario,
+    rol: estado.rol,
+    docente: estado.docente,
     irA: navegar,
   };
   try {

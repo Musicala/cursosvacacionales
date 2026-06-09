@@ -9,16 +9,20 @@ export default async function render(root, ctx) {
   const cfg = await leerConfig();
   if (cfg && Array.isArray(cfg.docentes) && cfg.docentes.length) DOCS = cfg.docentes;
 
+  // El docente solo ve (no edita) y únicamente su propio horario.
+  const soloLectura = ctx.rol === "docente";
+  const docenteNombre = ctx.docente?.nombre || "";
+
   // Semanas y días configurados para esta temporada (ver "Info temporada").
   const SEMANAS = semanasDe(ctx.temporada);
   const DIAS = diasDe(ctx.temporada);
 
   root.append(el("div", { class: "panel-head" },
-    el("h2", {}, "🗓️ Horarios y docentes"),
+    el("h2", {}, soloLectura ? "🗓️ Mi horario" : "🗓️ Horarios y docentes"),
     el("div", { class: "right" },
-      el("button", { class: "btn ghost", onclick: () => verDocentes() }, "Ver docentes"),
-      el("button", { class: "btn ghost", onclick: () => duplicarSemana() }, "⧉ Duplicar semana"),
-      el("button", { class: "btn primary", onclick: () => editar(ctx, null, cargar) }, "+ Asignar clase"),
+      soloLectura ? null : el("button", { class: "btn ghost", onclick: () => verDocentes() }, "Ver docentes"),
+      soloLectura ? null : el("button", { class: "btn ghost", onclick: () => duplicarSemana() }, "⧉ Duplicar semana"),
+      soloLectura ? null : el("button", { class: "btn primary", onclick: () => editar(ctx, null, cargar) }, "+ Asignar clase"),
     ),
   ));
 
@@ -37,12 +41,16 @@ export default async function render(root, ctx) {
   root.append(cont);
 
   let datos = [];
-  async function cargar() { datos = await listar(ctx.temporadaId, "grupos"); pintar(); }
+  async function cargar() {
+    datos = await listar(ctx.temporadaId, "grupos");
+    if (soloLectura) datos = datos.filter((d) => (d.docente || "") === docenteNombre);
+    pintar();
+  }
   function pintar() {
     const sem = fSemana.value;
     const filas = datos.filter((d) => !sem || d.semana === sem);
     cont.innerHTML = "";
-    if (!filas.length) { cont.append(el("div", { class: "empty" }, "Sin clases asignadas. Usa “+ Asignar clase”.")); return; }
+    if (!filas.length) { cont.append(el("div", { class: "empty" }, soloLectura ? "No tienes clases asignadas en esta temporada." : "Sin clases asignadas. Usa “+ Asignar clase”.")); return; }
     if (vista === "horario") pintarHorario(filas, sem);
     else pintarLista(filas);
   }
@@ -54,12 +62,14 @@ export default async function render(root, ctx) {
       el("td", {}, d.semana), el("td", {}, d.dia), el("td", {}, rangoHoras(d) || "—"), el("td", {}, d.grupo),
       el("td", {}, d.area), el("td", {}, d.taller || ""),
       el("td", {}, el("strong", {}, d.docente || "—")), el("td", {}, d.salon || ""),
-      el("td", { class: "row-actions" },
+      soloLectura ? null : el("td", { class: "row-actions" },
         el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
         el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "🗑")),
     )));
+    const cols = ["Semana", "Día", "Hora", "Grupo", "Área", "Taller/Temática", "Docente", "Salón"];
+    if (!soloLectura) cols.push("");
     cont.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
-      el("thead", {}, el("tr", {}, ...["Semana", "Día", "Hora", "Grupo", "Área", "Taller/Temática", "Docente", "Salón", ""].map((h) => el("th", {}, h)))), tb)));
+      el("thead", {}, el("tr", {}, ...cols.map((h) => el("th", {}, h)))), tb)));
   }
 
   // Vista tipo horario escolar: filas = grupos, columnas = días (Lun-Vie).
@@ -78,7 +88,8 @@ export default async function render(root, ctx) {
             .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""));
           if (!celdas.length) return el("td", { class: "h-vacia" }, "");
           return el("td", { class: "h-celda" }, ...celdas.map((d) => el("div", {
-            class: "h-clase", title: "Clic para editar", onclick: () => editar(ctx, d, cargar),
+            class: "h-clase", title: soloLectura ? "" : "Clic para editar",
+            onclick: soloLectura ? null : () => editar(ctx, d, cargar),
           },
             rangoHoras(d) ? el("div", { class: "h-hora" }, "🕘 " + rangoHoras(d)) : null,
             el("div", { class: "h-area" }, d.area || "—"),
@@ -202,7 +213,12 @@ function editar(ctx, dato, onSave) {
 
 async function persistirDocentes() {
   try {
-    await guardarConfig({ docentes: DOCS });
+    // Lista plana de correos (en minúscula) para que las reglas de seguridad
+    // y el control de acceso por rol puedan validar a los docentes.
+    const docentesCorreos = DOCS
+      .map((d) => (d.correo || "").trim().toLowerCase())
+      .filter(Boolean);
+    await guardarConfig({ docentes: DOCS, docentesCorreos });
     toast("Docentes guardados");
   } catch (e) {
     toast("Error al guardar: " + e.message, "error");
@@ -218,13 +234,14 @@ function verDocentes() {
       const idx = DOCS.indexOf(x);
       return el("tr", {},
         el("td", {}, x.nombre),
+        el("td", {}, x.correo || el("span", { class: "muted" }, "sin acceso")),
         el("td", {}, (x.areas || []).join(", ")),
         el("td", { class: "row-actions" },
           el("button", { class: "btn ghost small", onclick: () => editarDocente(idx, repintar) }, "Editar"),
           el("button", { class: "btn ghost small", onclick: () => borrarDocente(idx, repintar) }, "🗑")));
     }));
     return el("div", { class: "table-wrap" }, el("table", { class: "table" },
-      el("thead", {}, el("tr", {}, el("th", {}, "Docente"), el("th", {}, "Áreas"), el("th", {}, ""))), tb));
+      el("thead", {}, el("tr", {}, el("th", {}, "Docente"), el("th", {}, "Correo"), el("th", {}, "Áreas"), el("th", {}, ""))), tb));
   };
 
   function repintar() {
@@ -244,8 +261,9 @@ function verDocentes() {
 
 // idx = índice en DOCS, o null para crear uno nuevo.
 function editarDocente(idx, onSave) {
-  const d = idx == null ? { nombre: "", areas: [], reemplazo: false } : DOCS[idx];
+  const d = idx == null ? { nombre: "", areas: [], reemplazo: false, correo: "" } : DOCS[idx];
   const nombre = el("input", { type: "text", placeholder: "Nombre del docente", value: d.nombre || "" });
+  const correo = el("input", { type: "email", placeholder: "correo@gmail.com (para darle acceso)", value: d.correo || "" });
 
   const checks = AREAS.map((a) => {
     const c = el("input", { type: "checkbox", value: a });
@@ -258,6 +276,7 @@ function editarDocente(idx, onSave) {
 
   const grid = el("div", { class: "form-grid" },
     el("label", { class: "full" }, "Nombre", nombre),
+    el("label", { class: "full" }, "Correo (Google) para acceso", correo),
     el("label", { class: "full" }, "Áreas", el("div", { class: "checks" }, ...checks)),
     el("label", { class: "full check" }, reemplazo, " Es reemplazo (emergencias)"));
 
@@ -267,7 +286,7 @@ function editarDocente(idx, onSave) {
       const nom = nombre.value.trim();
       if (!nom) { toast("Escribe el nombre", "error"); return; }
       const areas = checks.map((l) => l.querySelector("input")).filter((c) => c.checked).map((c) => c.value);
-      const nuevo = { nombre: nom, areas, reemplazo: reemplazo.checked };
+      const nuevo = { nombre: nom, areas, reemplazo: reemplazo.checked, correo: correo.value.trim().toLowerCase() };
       DOCS = idx == null ? [...DOCS, nuevo] : DOCS.map((x, i) => (i === idx ? nuevo : x));
       await persistirDocentes();
       dlg.close();

@@ -20,7 +20,7 @@ export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
     el("h2", {}, "🍪 Musicafé (onces)"),
     el("div", { class: "right" },
-      el("button", { class: "btn ghost", onclick: () => editarPrecios(() => render((root.innerHTML = "", root), ctx)) }, "✏️ Editar precios"),
+      ctx.rol === "docente" ? null : el("button", { class: "btn ghost", onclick: () => editarPrecios(() => render((root.innerHTML = "", root), ctx)) }, "✏️ Editar precios"),
       el("button", { class: "btn ghost", onclick: () => verPrecios() }, "Ver precios"),
       el("button", { class: "btn primary", onclick: () => registrar(ctx, cargar) }, "+ Registrar consumo"),
     ),
