@@ -1,7 +1,7 @@
 // Módulo Contactos: interesados, antiguos (re-contacto), seguimiento.
-import { el, esc, toast, modal, confirmar } from "../ui.js";
+import { el, esc, toast, modal, confirmar, fmtCorta } from "../ui.js";
 import { listar, crear, actualizar, eliminar } from "../db.js";
-import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS } from "../catalogos.js";
+import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, semanasDetalle } from "../catalogos.js";
 import { estaConfigurada, onAuthBG, loginBG, usuarioBG, traerVacacionales } from "../base-general.js";
 import { buscarDuplicado } from "../dedup.js";
 
@@ -101,7 +101,7 @@ export default async function render(root, ctx) {
     }
     const tabla = el("table", { class: "table" },
       el("thead", {}, el("tr", {},
-        ...["Estudiante", "Edad", "Acudiente", "Celular", "Estado", "Semana(s)", "Origen", ""].map((h) => el("th", {}, h)))),
+        ...["Estudiante", "Edad", "Acudiente", "Celular", "Estado", "Semana(s)", "Ruta", "Origen", ""].map((h) => el("th", {}, h)))),
     );
     const tb = el("tbody", {});
     filas.forEach((d) => {
@@ -112,6 +112,7 @@ export default async function render(root, ctx) {
         el("td", {}, d.celular || ""),
         el("td", {}, el("span", { class: "pill estado-" + slug(d.estado) }, d.estado || "—")),
         el("td", {}, (d.semanas || []).join(", ")),
+        el("td", {}, d.ruta ? el("span", { class: "pill", title: "Requiere ruta" }, "🚌 Sí") : ""),
         el("td", {}, d.origen || ""),
         el("td", { class: "row-actions" },
           el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
@@ -145,11 +146,17 @@ function editar(ctx, dato, onSave) {
 
   const semanas = el("div", { class: "chips-input" });
   const semSel = (d.semanas || []);
-  ["Semana 1", "Semana 2", "Semana 3", "Semana 4"].forEach((s) => {
-    const chk = el("input", { type: "checkbox", value: s });
-    if (semSel.includes(s)) chk.checked = true;
-    semanas.append(el("label", { class: "chk" }, chk, s));
+  // Las semanas salen de la configuración de la temporada (número y fechas).
+  semanasDetalle(ctx.temporada).forEach((s) => {
+    const chk = el("input", { type: "checkbox", value: s.nombre });
+    if (semSel.includes(s.nombre)) chk.checked = true;
+    const rango = s.desde ? ` (${fmtCorta(s.desde)}${s.hasta ? "–" + fmtCorta(s.hasta) : ""})` : "";
+    semanas.append(el("label", { class: "chk" }, chk, s.nombre + rango));
   });
+
+  // ¿Requiere ruta? (queda visible en el listado y suma en el módulo Ruta).
+  const ruta = el("input", { type: "checkbox" });
+  if (d.ruta) ruta.checked = true;
 
   const grid = el("div", { class: "form-grid" },
     campo("estudiante", "Estudiante", { ph: "Nombre del niño/a" }),
@@ -161,6 +168,7 @@ function editar(ctx, dato, onSave) {
     campo("estado", "Estado", { tag: "select", opciones: ESTADOS_CONTACTO }),
     campo("origen", "Origen", { tag: "select", opciones: ["", "WhatsApp", "Instagram", "Facebook", "Referido", "Antiguo", "Otro"] }),
     el("label", { class: "full" }, "Semanas de interés", semanas),
+    el("label", { class: "chk full" }, ruta, " Requiere ruta"),
     campo("comentario", "Comentario", { full: true, ph: "Qué pidió, disponibilidad, objeciones…" }),
   );
 
@@ -184,6 +192,7 @@ function editar(ctx, dato, onSave) {
         estado: f.estado.value,
         origen: f.origen.value,
         comentario: f.comentario.value.trim(),
+        ruta: ruta.checked,
         semanas: [...semanas.querySelectorAll("input:checked")].map((c) => c.value),
       };
       if (!payload.estudiante && !payload.acudiente) { toast("Pon al menos un nombre", "error"); return; }

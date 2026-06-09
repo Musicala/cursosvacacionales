@@ -1,7 +1,7 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
 import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js";
 import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas } from "../db.js";
-import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe } from "../catalogos.js";
+import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js";
 
 export default async function render(root, ctx) {
   // Precios de la temporada (para autocompletar el valor según el paquete).
@@ -11,6 +11,8 @@ export default async function render(root, ctx) {
   ctx._semanas = semanasDe(temp);
   // Lista de temporadas (para poder asignar/mover cada inscrito).
   ctx._temporadas = await listarTemporadas();
+  // Contactos de la temporada: para inscribir eligiendo de la lista (sin reescribir datos).
+  ctx._contactos = await listar(ctx.temporadaId, "contactos");
 
   root.append(el("div", { class: "panel-head" },
     el("h2", {}, "✅ Inscripciones"),
@@ -90,6 +92,20 @@ function editar(ctx, dato, onSave) {
 
   const ruta = el("input", { type: "checkbox" }); if (d.ruta) ruta.checked = true;
 
+  // Horario: estándar (9 a 1) o "Vacacionales Intensivos" con horario personalizado.
+  const horarioPredef = d.horario && d.horario !== HORARIO_ESTANDAR ? HORARIO_INTENSIVO : HORARIO_ESTANDAR;
+  const selHorario = el("select", {}, ...[HORARIO_ESTANDAR, HORARIO_INTENSIVO].map((o) => {
+    const op = el("option", { value: o }, o); if (o === horarioPredef) op.selected = true; return op;
+  }));
+  const horarioCustom = el("input", { type: "text", placeholder: "Ej: 2:00 p.m. a 5:00 p.m." });
+  if (horarioPredef === HORARIO_INTENSIVO) horarioCustom.value = d.horario || "";
+  const wrapHorario = el("div", { class: "horario-sel" }, selHorario, horarioCustom);
+  function refrescarHorario() {
+    horarioCustom.style.display = selHorario.value === HORARIO_INTENSIVO ? "" : "none";
+  }
+  selHorario.onchange = refrescarHorario;
+  refrescarHorario();
+
   // Selector de temporada: a cuál pertenece este inscrito (permite mover).
   const temporadas = ctx._temporadas || [];
   const selTemporada = el("select", {}, ...temporadas.map((t) => {
@@ -105,14 +121,60 @@ function editar(ctx, dato, onSave) {
   const precios = (ctx._precios && ctx._precios.length) ? ctx._precios : PAQUETES.map((p) => ({ concepto: p.nombre, valor: 0 }));
   const nombresPaquete = precios.map((p) => p.concepto);
 
+  // Buscador para inscribir eligiendo de la lista de Contactos (evita reescribir datos).
+  const contactos = ctx._contactos || [];
+  function aplicarContacto(c) {
+    if (!c) return;
+    f.estudiante.value = c.estudiante || "";
+    f.edad.value = c.edad ?? "";
+    if (c.grupo) f.grupo.value = c.grupo;
+    f.acudiente.value = c.acudiente || "";
+    f.celular.value = c.celular || "";
+    if (c.ruta) ruta.checked = true;
+    // Marcar las semanas de interés del contacto.
+    semWrap.querySelectorAll("input").forEach((chk) => { chk.checked = (c.semanas || []).includes(chk.value); });
+  }
+  const etiquetaC = (c) => `${c.estudiante || "(sin nombre)"}${c.acudiente ? " · " + c.acudiente : ""}${c.celular ? " · " + c.celular : ""}`;
+
+  const buscador = el("input", { type: "text",
+    placeholder: contactos.length ? "Escribe un nombre, acudiente o celular…" : "No hay contactos cargados",
+    autocomplete: "off" });
+  if (!contactos.length) buscador.disabled = true;
+  const lista = el("div", { class: "combo-list", style: "display:none" });
+  const selContacto = el("div", { class: "combo" }, buscador, lista);
+
+  function pintarLista(q) {
+    const term = (q || "").trim().toLowerCase();
+    const res = contactos
+      .map((c, i) => ({ c, i }))
+      .filter(({ c }) => !term || etiquetaC(c).toLowerCase().includes(term))
+      .slice(0, 30);
+    lista.innerHTML = "";
+    if (!res.length) { lista.style.display = "none"; return; }
+    res.forEach(({ c }) => {
+      const item = el("div", { class: "combo-item", onmousedown: (e) => {
+        e.preventDefault();
+        buscador.value = etiquetaC(c);
+        lista.style.display = "none";
+        aplicarContacto(c);
+      } }, etiquetaC(c));
+      lista.append(item);
+    });
+    lista.style.display = "";
+  }
+  buscador.addEventListener("focus", () => pintarLista(buscador.value));
+  buscador.addEventListener("input", () => pintarLista(buscador.value));
+  buscador.addEventListener("blur", () => setTimeout(() => (lista.style.display = "none"), 150));
+
   const grid = el("div", { class: "form-grid" },
     el("label", { class: "full" }, "Temporada", selTemporada),
+    dato ? null : el("label", { class: "full" }, "Inscribir desde contacto", selContacto),
     el("label", {}, "Fecha de inscripción", fecha),
     el("label", {}, "Estudiante", inp("estudiante", { ph: "Nombre" })),
     el("label", {}, "Edad", inp("edad", { type: "number" })),
     el("label", {}, "Grupo", sel("grupo", ["", ...GRUPOS.map((g) => g.nombre)])),
     el("label", {}, "Paquete", sel("paquete", ["", ...nombresPaquete])),
-    el("label", {}, "Horario", inp("horario", { ph: "9:00 a.m. a 1:00 p.m." })),
+    el("label", {}, "Horario", wrapHorario),
     el("label", {}, "Valor", inp("valor", { type: "number", ph: "0" })),
     el("label", {}, "Estado de pago", sel("estadoPago", ESTADOS_PAGO)),
     el("label", {}, "Medio de pago", inp("medioPago", { ph: "Nequi / Transferencia…" })),
@@ -138,7 +200,8 @@ function editar(ctx, dato, onSave) {
       const payload = {
         fechaInscripcion: fecha.value || hoyISO(),
         estudiante: f.estudiante.value.trim(), edad: f.edad.value ? Number(f.edad.value) : null,
-        grupo: f.grupo.value, paquete: f.paquete.value, horario: f.horario.value.trim(),
+        grupo: f.grupo.value, paquete: f.paquete.value,
+        horario: selHorario.value === HORARIO_INTENSIVO ? (horarioCustom.value.trim() || HORARIO_INTENSIVO) : HORARIO_ESTANDAR,
         valor: f.valor.value ? Number(f.valor.value) : 0, estadoPago: f.estadoPago.value,
         medioPago: f.medioPago.value.trim(), acudiente: f.acudiente.value.trim(), celular: f.celular.value.trim(),
         ruta: ruta.checked, observaciones: f.observaciones.value.trim(),

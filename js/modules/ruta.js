@@ -1,4 +1,4 @@
-// Módulo Ruta: lista de quienes necesitan ruta y viabilidad vs. el mínimo.
+// Módulo Ruta: interesados (contactos) y confirmados (inscritos), con viabilidad vs. el mínimo.
 import { el, toast } from "../ui.js";
 import { listar, actualizar } from "../db.js";
 import { RUTA_MINIMO } from "../catalogos.js";
@@ -12,48 +12,83 @@ export default async function render(root, ctx) {
 
   const inscritos = await listar(ctx.temporadaId, "inscripciones");
   const contactos = await listar(ctx.temporadaId, "contactos");
-  const conRuta = [
-    ...inscritos.filter((d) => d.ruta).map((d) => ({ ...d, _tipo: "Inscrito", _col: "inscripciones" })),
-    ...contactos.filter((d) => d.ruta).map((d) => ({ ...d, _tipo: "Contacto", _col: "contactos" })),
-  ];
-  const n = conRuta.length;
-  const viable = n >= RUTA_MINIMO;
-  const faltan = Math.max(0, RUTA_MINIMO - n);
+
+  // Confirmados = inscritos con ruta. Interesados = contactos con ruta que aún no están inscritos.
+  const confirmados = inscritos.filter((d) => d.ruta).map((d) => ({ ...d, _tipo: "Confirmado", _col: "inscripciones" }));
+  const interesados = contactos.filter((d) => d.ruta).map((d) => ({ ...d, _tipo: "Interesado", _col: "contactos" }));
+
+  const nConf = confirmados.length;
+  const nInt = interesados.length;
+  const nTotal = nConf + nInt;          // potencial total (interesados + confirmados)
+  const viableConf = nConf >= RUTA_MINIMO;
+  const viableTotal = nTotal >= RUTA_MINIMO;
+  const faltanConf = Math.max(0, RUTA_MINIMO - nConf);
+  const faltanTotal = Math.max(0, RUTA_MINIMO - nTotal);
 
   cont.innerHTML = "";
-  const semaforo = el("div", { class: "panel ruta-status " + (viable ? "ok" : "warn") },
-    el("div", { class: "ruta-big" }, viable ? "✅" : "⏳"),
+
+  // Tarjetas de resumen.
+  cont.append(el("div", { class: "cards-row" },
+    tarjeta("Confirmados (inscritos)", nConf, viableConf ? "ok" : ""),
+    tarjeta("Interesados (contactos)", nInt),
+    tarjeta("Potencial total", `${nTotal} / ${RUTA_MINIMO}`, viableTotal ? "ok" : "warn"),
+  ));
+
+  // Semáforo principal: basado en confirmados (los que ya cuentan de verdad).
+  const semaforo = el("div", { class: "panel ruta-status " + (viableConf ? "ok" : "warn") },
+    el("div", { class: "ruta-big" }, viableConf ? "✅" : "⏳"),
     el("div", {},
-      el("div", { class: "stat-val" }, `${n} / ${RUTA_MINIMO}`),
-      el("div", { class: "stat-lbl" }, viable
-        ? "¡Ruta viable! Ya se alcanzó el mínimo."
-        : `Faltan ${faltan} estudiante(s) para activar la ruta.`),
+      el("div", { class: "stat-val" }, `${nConf} / ${RUTA_MINIMO} confirmados`),
+      el("div", { class: "stat-lbl" }, viableConf
+        ? "¡Ruta viable! Ya hay confirmados suficientes."
+        : `Faltan ${faltanConf} confirmado(s) para activar la ruta.`),
     ),
   );
   cont.append(semaforo);
 
-  const panel = el("div", { class: "panel" });
-  panel.append(el("div", { class: "panel-head" }, el("h3", {}, "Estudiantes que piden ruta"),
-    el("div", { class: "muted small" }, "Marca el check de “ruta” en Contactos o Inscripciones para sumar aquí.")));
-  if (!n) panel.append(el("div", { class: "empty" }, "Nadie ha solicitado ruta todavía."));
-  else {
-    const tb = el("tbody", {});
-    conRuta.forEach((d) => tb.append(el("tr", {},
-      el("td", {}, el("strong", {}, d.estudiante || "—")),
-      el("td", {}, d._tipo),
-      el("td", {}, d.celular || ""),
-      el("td", {}, d.direccion || el("span", { class: "muted" }, "sin dirección")),
-      el("td", { class: "row-actions" },
-        el("button", { class: "btn ghost small", onclick: async () => {
-          const dir = prompt("Dirección / barrio para la ruta:", d.direccion || "");
-          if (dir === null) return;
-          await actualizar(ctx.temporadaId, d._col, d.id, { direccion: dir.trim() });
-          toast("Dirección guardada"); render(root, ctx);
-        } }, "Dirección"),
-      ),
-    )));
-    panel.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
-      el("thead", {}, el("tr", {}, ...["Estudiante", "Tipo", "Celular", "Dirección", ""].map((h) => el("th", {}, h)))), tb)));
+  // Aviso: si sumando interesados se alcanza el mínimo, sugerir contratar/gestionar.
+  if (!viableConf && viableTotal) {
+    cont.append(el("div", { class: "panel ruta-status ok" },
+      el("div", { class: "ruta-big" }, "📣"),
+      el("div", {}, el("div", { class: "stat-lbl" },
+        `¡Atención! Con los ${nInt} interesado(s) ya se alcanzaría el mínimo de ${RUTA_MINIMO}. ` +
+        "Vale la pena gestionar la ruta y confirmar a los interesados.")),
+    ));
+  } else if (!viableTotal) {
+    cont.append(el("div", { class: "panel muted small" },
+      `Sumando interesados y confirmados faltarían ${faltanTotal} estudiante(s) para el mínimo de ${RUTA_MINIMO}.`));
   }
-  cont.append(panel);
+
+  cont.append(tablaPersonas("✅ Confirmados (inscritos con ruta)", confirmados,
+    "Marca “Necesita ruta” en Inscripciones para sumar aquí.", ctx, root));
+  cont.append(tablaPersonas("⏳ Interesados (contactos con ruta)", interesados,
+    "Marca “Requiere ruta” en Contactos para sumar aquí.", ctx, root));
+}
+
+function tarjeta(lbl, val, tono = "") {
+  return el("div", { class: "stat " + tono }, el("div", { class: "stat-val" }, String(val)), el("div", { class: "stat-lbl" }, lbl));
+}
+
+function tablaPersonas(titulo, lista, ayuda, ctx, root) {
+  const panel = el("div", { class: "panel" });
+  panel.append(el("div", { class: "panel-head" }, el("h3", {}, titulo),
+    el("div", { class: "muted small" }, ayuda)));
+  if (!lista.length) { panel.append(el("div", { class: "empty" }, "Nadie por ahora.")); return panel; }
+  const tb = el("tbody", {});
+  lista.forEach((d) => tb.append(el("tr", {},
+    el("td", {}, el("strong", {}, d.estudiante || "—")),
+    el("td", {}, d.celular || ""),
+    el("td", {}, d.direccion || el("span", { class: "muted" }, "sin dirección")),
+    el("td", { class: "row-actions" },
+      el("button", { class: "btn ghost small", onclick: async () => {
+        const dir = prompt("Dirección / barrio para la ruta:", d.direccion || "");
+        if (dir === null) return;
+        await actualizar(ctx.temporadaId, d._col, d.id, { direccion: dir.trim() });
+        toast("Dirección guardada"); render(root, ctx);
+      } }, "Dirección"),
+    ),
+  )));
+  panel.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
+    el("thead", {}, el("tr", {}, ...["Estudiante", "Celular", "Dirección", ""].map((h) => el("th", {}, h)))), tb)));
+  return panel;
 }

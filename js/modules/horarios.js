@@ -17,6 +17,7 @@ export default async function render(root, ctx) {
     el("h2", {}, "🗓️ Horarios y docentes"),
     el("div", { class: "right" },
       el("button", { class: "btn ghost", onclick: () => verDocentes() }, "Ver docentes"),
+      el("button", { class: "btn ghost", onclick: () => duplicarSemana() }, "⧉ Duplicar semana"),
       el("button", { class: "btn primary", onclick: () => editar(ctx, null, cargar) }, "+ Asignar clase"),
     ),
   ));
@@ -50,7 +51,7 @@ export default async function render(root, ctx) {
     const tb = el("tbody", {});
     filas.sort((a, b) => (a.semana + a.dia).localeCompare(b.semana + b.dia));
     filas.forEach((d) => tb.append(el("tr", {},
-      el("td", {}, d.semana), el("td", {}, d.dia), el("td", {}, d.grupo),
+      el("td", {}, d.semana), el("td", {}, d.dia), el("td", {}, rangoHoras(d) || "—"), el("td", {}, d.grupo),
       el("td", {}, d.area), el("td", {}, d.taller || ""),
       el("td", {}, el("strong", {}, d.docente || "—")), el("td", {}, d.salon || ""),
       el("td", { class: "row-actions" },
@@ -58,7 +59,7 @@ export default async function render(root, ctx) {
         el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "🗑")),
     )));
     cont.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
-      el("thead", {}, el("tr", {}, ...["Semana", "Día", "Grupo", "Área", "Taller/Temática", "Docente", "Salón", ""].map((h) => el("th", {}, h)))), tb)));
+      el("thead", {}, el("tr", {}, ...["Semana", "Día", "Hora", "Grupo", "Área", "Taller/Temática", "Docente", "Salón", ""].map((h) => el("th", {}, h)))), tb)));
   }
 
   // Vista tipo horario escolar: filas = grupos, columnas = días (Lun-Vie).
@@ -73,11 +74,13 @@ export default async function render(root, ctx) {
       const body = el("tbody", {}, ...grupos.map((g) => el("tr", {},
         el("td", {}, el("strong", {}, g)),
         ...DIAS.map((dia) => {
-          const celdas = deSemana.filter((d) => d.grupo === g && d.dia === dia);
+          const celdas = deSemana.filter((d) => d.grupo === g && d.dia === dia)
+            .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""));
           if (!celdas.length) return el("td", { class: "h-vacia" }, "");
           return el("td", { class: "h-celda" }, ...celdas.map((d) => el("div", {
             class: "h-clase", title: "Clic para editar", onclick: () => editar(ctx, d, cargar),
           },
+            rangoHoras(d) ? el("div", { class: "h-hora" }, "🕘 " + rangoHoras(d)) : null,
             el("div", { class: "h-area" }, d.area || "—"),
             d.taller ? el("div", { class: "h-taller" }, d.taller) : null,
             el("div", { class: "h-doc" }, d.docente || "—"),
@@ -89,9 +92,64 @@ export default async function render(root, ctx) {
     });
   }
 
+  // Copia todas las clases de una semana hacia otra(s) semana(s).
+  function duplicarSemana() {
+    if (!SEMANAS.length) { toast("Configura las semanas en “Info temporada”.", "error"); return; }
+    const origen = el("select", {}, ...SEMANAS.map((s) => {
+      const o = el("option", { value: s }, s); if (s === fSemana.value) o.selected = true; return o;
+    }));
+    const destinos = el("div", { class: "checks" });
+    function pintarDestinos() {
+      destinos.innerHTML = "";
+      SEMANAS.filter((s) => s !== origen.value).forEach((s) => {
+        const c = el("input", { type: "checkbox", value: s });
+        destinos.append(el("label", { class: "check" }, c, " " + s));
+      });
+    }
+    pintarDestinos();
+    origen.onchange = pintarDestinos;
+
+    const body = el("div", {},
+      el("label", { class: "block-label" }, "Copiar clases de", origen),
+      el("h4", {}, "Pegar en estas semanas"),
+      el("p", { class: "muted small" }, "Se agregarán copias de todas las clases de la semana de origen."),
+      destinos,
+    );
+    modal("Duplicar semana", body, [
+      { texto: "Cancelar", clase: "ghost" },
+      { texto: "Duplicar", clase: "primary", onClick: async (dlg) => {
+        const sem = origen.value;
+        const objetivos = [...destinos.querySelectorAll("input:checked")].map((c) => c.value);
+        if (!objetivos.length) { toast("Elige al menos una semana destino", "error"); return; }
+        const clases = datos.filter((d) => d.semana === sem);
+        if (!clases.length) { toast("Esa semana no tiene clases para copiar", "error"); return; }
+        try {
+          let total = 0;
+          for (const destino of objetivos) {
+            for (const c of clases) {
+              const { id, creado, actualizado, ...resto } = c;
+              await crear(ctx.temporadaId, "grupos", { ...resto, semana: destino });
+              total++;
+            }
+          }
+          dlg.close();
+          toast(`${total} clase(s) copiadas a ${objetivos.length} semana(s)`);
+          cargar();
+        } catch (e) { toast("Error: " + e.message, "error"); }
+      } },
+    ]);
+  }
+
   fSemana.onchange = pintar;
   setVista("horario");
   await cargar();
+}
+
+// "09:00"–"10:00" -> "9:00–10:00". Devuelve "" si no hay horas.
+function rangoHoras(d) {
+  const a = d.horaInicio || "", b = d.horaFin || "";
+  if (!a && !b) return "";
+  return [a, b].filter(Boolean).join("–");
 }
 
 function editar(ctx, dato, onSave) {
@@ -101,6 +159,7 @@ function editar(ctx, dato, onSave) {
   const f = {};
   const sel = (k, ops) => { const s = el("select", {}, ...ops.map((o) => { const op = el("option", { value: o }, o || "—"); if (d[k] === o) op.selected = true; return op; })); f[k] = s; return s; };
   const inp = (k, ph) => { const i = el("input", { type: "text", placeholder: ph || "" }); if (d[k] != null) i.value = d[k]; f[k] = i; return i; };
+  const hora = (k) => { const i = el("input", { type: "time" }); if (d[k] != null) i.value = d[k]; f[k] = i; return i; };
 
   // Refresca el selector de docentes mostrando solo quienes dictan el área elegida.
   function refrescarDocentes() {
@@ -119,8 +178,10 @@ function editar(ctx, dato, onSave) {
     el("label", {}, "Semana", sel("semana", SEMANAS)),
     el("label", {}, "Día", sel("dia", DIAS)),
     el("label", {}, "Grupo", sel("grupo", GRUPOS.map((g) => g.nombre))),
-    el("label", {}, "Área", sel("area", AREAS)),
+    el("label", {}, "Área", sel("area", [...AREAS, "Onces"])),
     el("label", {}, "Docente", sel("docente", ["", ...DOCS.map((x) => x.nombre)])),
+    el("label", {}, "Hora inicio", hora("horaInicio")),
+    el("label", {}, "Hora fin", hora("horaFin")),
     el("label", {}, "Salón", inp("salon", "Ej: Salón 2")),
     el("label", { class: "full" }, "Taller / Temática", inp("taller", "Ej: Navidad, Películas, Disney…")),
   );
@@ -129,7 +190,7 @@ function editar(ctx, dato, onSave) {
   modal(dato ? "Editar clase" : "Asignar clase", grid, [
     { texto: "Cancelar", clase: "ghost" },
     { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
-      const payload = { semana: f.semana.value, dia: f.dia.value, grupo: f.grupo.value, area: f.area.value, docente: f.docente.value, salon: f.salon.value.trim(), taller: f.taller.value.trim() };
+      const payload = { semana: f.semana.value, dia: f.dia.value, grupo: f.grupo.value, area: f.area.value, docente: f.docente.value, salon: f.salon.value.trim(), taller: f.taller.value.trim(), horaInicio: f.horaInicio.value, horaFin: f.horaFin.value };
       try {
         if (dato) await actualizar(ctx.temporadaId, "grupos", dato.id, payload);
         else await crear(ctx.temporadaId, "grupos", payload);

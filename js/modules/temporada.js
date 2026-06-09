@@ -2,7 +2,7 @@
 // Guarda todo en el documento de la temporada -> queda como histórico por temporada.
 import { el, cop, toast, modal, fmtFecha, fmtCorta } from "../ui.js";
 import { obtenerTemporada, actualizarTemporada } from "../db.js";
-import { PAQUETES, RUTA_MINIMO, DIAS, DIAS_POSIBLES, NUM_SEMANAS_DEFAULT } from "../catalogos.js";
+import { PAQUETES, RUTA_MINIMO, DIAS, DIAS_POSIBLES, NUM_SEMANAS_DEFAULT, semanasDetalle } from "../catalogos.js";
 
 // Precios por defecto (concepto + valor) para una temporada nueva.
 function preciosPorDefecto() {
@@ -26,6 +26,19 @@ export default async function render(root, ctx) {
     tarjeta("Fin", t.fechaFin ? fmtFecha(t.fechaFin) : "—"),
     tarjeta("Valor ruta", t.valorRuta ? cop(t.valorRuta) : "—"),
   ));
+
+  // ----- Semanas y sus fechas -----
+  const detalle = semanasDetalle(t);
+  const pSemanas = el("div", { class: "panel" });
+  pSemanas.append(el("h3", {}, "🗓️ Semanas de la temporada"));
+  const tbS = el("tbody", {});
+  detalle.forEach((s) => tbS.append(el("tr", {},
+    el("td", {}, s.nombre),
+    el("td", {}, s.desde ? fmtFecha(s.desde) : el("span", { class: "muted" }, "sin definir")),
+    el("td", {}, s.hasta ? fmtFecha(s.hasta) : el("span", { class: "muted" }, "sin definir")))));
+  pSemanas.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
+    el("thead", {}, el("tr", {}, el("th", {}, "Semana"), el("th", {}, "Desde"), el("th", {}, "Hasta"))), tbS)));
+  root.append(pSemanas);
 
   // ----- Tabla de precios -----
   const precios = (t.precios && t.precios.length) ? t.precios : preciosPorDefecto();
@@ -105,6 +118,25 @@ export function formularioTemporada(t, onSave) {
   const numSemanas = el("input", { type: "number", min: "1", max: "12", placeholder: String(NUM_SEMANAS_DEFAULT) });
   numSemanas.value = d.numSemanas || NUM_SEMANAS_DEFAULT;
 
+  // ----- Fechas de cada semana (se regeneran según el número de semanas) -----
+  let semanasFechas = (Array.isArray(d.semanasFechas) ? d.semanasFechas.map((x) => ({ ...x })) : []);
+  const filasSemanas = el("div", { class: "precio-edit" });
+  function pintarSemanas() {
+    const n = Number(numSemanas.value) > 0 ? Number(numSemanas.value) : NUM_SEMANAS_DEFAULT;
+    // Ajustar el arreglo al número de semanas, conservando lo ya escrito.
+    while (semanasFechas.length < n) semanasFechas.push({ desde: "", hasta: "" });
+    semanasFechas = semanasFechas.slice(0, n);
+    filasSemanas.innerHTML = "";
+    semanasFechas.forEach((s, i) => {
+      const desde = el("input", { type: "date", value: s.desde || "" });
+      desde.oninput = () => (semanasFechas[i].desde = desde.value);
+      const hasta = el("input", { type: "date", value: s.hasta || "" });
+      hasta.oninput = () => (semanasFechas[i].hasta = hasta.value);
+      filasSemanas.append(el("div", { class: "precio-row" },
+        el("span", { class: "sem-label" }, `Semana ${i + 1}`), desde, hasta));
+    });
+  }
+
   const diasActuales = (Array.isArray(d.dias) && d.dias.length) ? d.dias : DIAS;
   const diasChecks = DIAS_POSIBLES.map((dia) => {
     const c = el("input", { type: "checkbox", value: dia });
@@ -132,6 +164,9 @@ export function formularioTemporada(t, onSave) {
       el("label", {}, "Fecha de finalización", inp("fechaFin", { type: "date" })),
       el("label", {}, "Número de semanas", numSemanas),
     ),
+    el("h4", {}, "🗓️ Fechas de cada semana"),
+    el("p", { class: "muted small" }, "Indica de qué fecha a qué fecha va cada semana."),
+    filasSemanas,
     el("h4", {}, "🗓️ Días de clase"),
     el("p", { class: "muted small" }, "Determina las columnas del horario y las opciones de día."),
     el("div", { class: "checks" }, ...diasChecks),
@@ -144,6 +179,10 @@ export function formularioTemporada(t, onSave) {
   // Al elegir las fechas, arma el nombre automáticamente (si no lo escribieron a mano).
   f.fechaInicio.addEventListener("change", autoNombre);
   f.fechaFin.addEventListener("change", autoNombre);
+
+  // Generar las filas de fechas por semana y regenerarlas si cambia el número.
+  pintarSemanas();
+  numSemanas.addEventListener("input", pintarSemanas);
 
   modal(t ? "Editar info de la temporada" : "Nueva temporada", body, [
     { texto: "Cancelar", clase: "ghost" },
@@ -158,6 +197,7 @@ export function formularioTemporada(t, onSave) {
           const sel = diasChecks.map((l) => l.querySelector("input")).filter((c) => c.checked).map((c) => c.value);
           return sel.length ? sel : DIAS;
         })(),
+        semanasFechas: semanasFechas.map((s) => ({ desde: s.desde || "", hasta: s.hasta || "" })),
         precios: precios.filter((p) => p.concepto.trim()),
         descuentos: descuentos.value.trim(),
         notas: notas.value.trim(),
