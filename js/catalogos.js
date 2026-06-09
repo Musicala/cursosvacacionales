@@ -98,6 +98,23 @@ export function semanasDe(temporada) {
   return semanasLista(temporada && temporada.numSemanas);
 }
 
+// Detalle de semanas con sus fechas: [{ nombre:"Semana 1", desde:"2026-06-09", hasta:"2026-06-13" }, ...].
+// Combina numSemanas con el arreglo semanasFechas guardado en la temporada.
+export function semanasDetalle(temporada) {
+  const nombres = semanasDe(temporada);
+  const fechas = (temporada && Array.isArray(temporada.semanasFechas)) ? temporada.semanasFechas : [];
+  return nombres.map((nombre, i) => ({
+    nombre,
+    desde: (fechas[i] && fechas[i].desde) || "",
+    hasta: (fechas[i] && fechas[i].hasta) || "",
+  }));
+}
+
+// Horarios de clase. El estándar es 9 a 1 p.m.; "Vacacionales Intensivos" permite uno personalizado.
+export const HORARIO_ESTANDAR = "9:00 a.m. a 1:00 p.m.";
+export const HORARIO_INTENSIVO = "Vacacionales Intensivos";
+export const HORARIOS_OPCIONES = [HORARIO_ESTANDAR, HORARIO_INTENSIVO];
+
 // Días de clase configurados para una temporada (usa dias del documento, o Lunes-Viernes).
 export function diasDe(temporada) {
   return temporada && Array.isArray(temporada.dias) && temporada.dias.length ? temporada.dias : DIAS;
