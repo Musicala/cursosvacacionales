@@ -99,6 +99,19 @@ label.check input,.checks .check input{width:auto}
 .h-taller{font-size:.78rem;color:var(--ink)}
 .h-doc{font-size:.8rem;color:var(--ink);font-weight:600;margin-top:.15rem}
 .h-salon{font-size:.74rem;color:var(--muted)}
+.h-hora{font-size:.74rem;color:var(--muted);font-weight:600}
+
+/* ---- Buscador de contactos (combobox) ---- */
+.combo{position:relative}
+.combo-list{position:absolute;z-index:10;left:0;right:0;top:100%;margin-top:2px;
+  background:#fff;border:1px solid #e3d9fb;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);
+  max-height:240px;overflow:auto}
+.combo-item{padding:.5rem .65rem;cursor:pointer;font-size:.88rem}
+.combo-item:hover{background:#f3effe}
+
+/* ---- Horario en inscripciones / fechas de semana ---- */
+.horario-sel{display:flex;flex-direction:column;gap:.4rem}
+.sem-label{font-weight:600;color:var(--ink);align-self:center}
 
 /* ---- Pills / estados ---- */
 .pill{display:inline-block;padding:.18rem .6rem;border-radius:999px;font-size:.76rem;
