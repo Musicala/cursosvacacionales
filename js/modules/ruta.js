@@ -1,10 +1,38 @@
 // Módulo Ruta: interesados (contactos) y confirmados (inscritos), con viabilidad vs. el mínimo.
-import { el, toast } from "../ui.js";
-import { listar, actualizar } from "../db.js";
+import { el, toast, modal } from "../ui.js";
+import { listar, actualizar, obtenerTemporada, actualizarTemporada } from "../db.js";
 import { RUTA_MINIMO } from "../catalogos.js";
 
 export default async function render(root, ctx) {
-  root.append(el("div", { class: "panel-head" }, el("h2", {}, "🚌 Ruta")));
+  root.innerHTML = "";
+  // Mínimo de la ruta: editable por temporada (se puede negociar con otra empresa).
+  const temp = (await obtenerTemporada(ctx.temporadaId)) || {};
+  const RUTA_MIN = Number(temp.rutaMinimo) > 0 ? Number(temp.rutaMinimo) : RUTA_MINIMO;
+
+  root.append(el("div", { class: "panel-head" },
+    el("h2", {}, "🚌 Ruta"),
+    el("div", { class: "right" },
+      el("button", { class: "btn ghost", onclick: () => editarMinimo() }, "⚙️ Mínimo requerido"),
+    ),
+  ));
+
+  function editarMinimo() {
+    const input = el("input", { type: "number", min: "1", value: String(RUTA_MIN) });
+    const body = el("div", {},
+      el("label", { class: "block-label" }, "Cantidad mínima de estudiantes para activar la ruta", input),
+      el("p", { class: "muted small" }, "Ajústalo según lo que negocies con la empresa de transporte."));
+    modal("Mínimo requerido para la ruta", body, [
+      { texto: "Cancelar", clase: "ghost" },
+      { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
+        const n = Number(input.value);
+        if (!(n > 0)) { toast("Pon un número mayor que 0", "error"); return; }
+        try {
+          await actualizarTemporada(ctx.temporadaId, { rutaMinimo: n });
+          dlg.close(); toast("Mínimo actualizado"); render(root, ctx);
+        } catch (e) { toast("Error: " + e.message, "error"); }
+      } },
+    ]);
+  }
 
   const cont = el("div", {});
   root.append(cont);
@@ -20,10 +48,10 @@ export default async function render(root, ctx) {
   const nConf = confirmados.length;
   const nInt = interesados.length;
   const nTotal = nConf + nInt;          // potencial total (interesados + confirmados)
-  const viableConf = nConf >= RUTA_MINIMO;
-  const viableTotal = nTotal >= RUTA_MINIMO;
-  const faltanConf = Math.max(0, RUTA_MINIMO - nConf);
-  const faltanTotal = Math.max(0, RUTA_MINIMO - nTotal);
+  const viableConf = nConf >= RUTA_MIN;
+  const viableTotal = nTotal >= RUTA_MIN;
+  const faltanConf = Math.max(0, RUTA_MIN - nConf);
+  const faltanTotal = Math.max(0, RUTA_MIN - nTotal);
 
   cont.innerHTML = "";
 
@@ -31,14 +59,14 @@ export default async function render(root, ctx) {
   cont.append(el("div", { class: "cards-row" },
     tarjeta("Confirmados (inscritos)", nConf, viableConf ? "ok" : ""),
     tarjeta("Interesados (contactos)", nInt),
-    tarjeta("Potencial total", `${nTotal} / ${RUTA_MINIMO}`, viableTotal ? "ok" : "warn"),
+    tarjeta("Potencial total", `${nTotal} / ${RUTA_MIN}`, viableTotal ? "ok" : "warn"),
   ));
 
   // Semáforo principal: basado en confirmados (los que ya cuentan de verdad).
   const semaforo = el("div", { class: "panel ruta-status " + (viableConf ? "ok" : "warn") },
     el("div", { class: "ruta-big" }, viableConf ? "✅" : "⏳"),
     el("div", {},
-      el("div", { class: "stat-val" }, `${nConf} / ${RUTA_MINIMO} confirmados`),
+      el("div", { class: "stat-val" }, `${nConf} / ${RUTA_MIN} confirmados`),
       el("div", { class: "stat-lbl" }, viableConf
         ? "¡Ruta viable! Ya hay confirmados suficientes."
         : `Faltan ${faltanConf} confirmado(s) para activar la ruta.`),
@@ -51,12 +79,12 @@ export default async function render(root, ctx) {
     cont.append(el("div", { class: "panel ruta-status ok" },
       el("div", { class: "ruta-big" }, "📣"),
       el("div", {}, el("div", { class: "stat-lbl" },
-        `¡Atención! Con los ${nInt} interesado(s) ya se alcanzaría el mínimo de ${RUTA_MINIMO}. ` +
+        `¡Atención! Con los ${nInt} interesado(s) ya se alcanzaría el mínimo de ${RUTA_MIN}. ` +
         "Vale la pena gestionar la ruta y confirmar a los interesados.")),
     ));
   } else if (!viableTotal) {
     cont.append(el("div", { class: "panel muted small" },
-      `Sumando interesados y confirmados faltarían ${faltanTotal} estudiante(s) para el mínimo de ${RUTA_MINIMO}.`));
+      `Sumando interesados y confirmados faltarían ${faltanTotal} estudiante(s) para el mínimo de ${RUTA_MIN}.`));
   }
 
   cont.append(tablaPersonas("✅ Confirmados (inscritos con ruta)", confirmados,
