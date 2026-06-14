@@ -88,7 +88,7 @@ export default async function render(root, ctx) {
     const filas = datos.filter((d) => {
       if (est && d.estado !== est) return false;
       if (q) {
-        const blob = [d.estudiante, d.acudiente, d.celular, d.correo].join(" ").toLowerCase();
+        const blob = [d.estudiante, d.acudiente, d.celular, d.correo, d.direccion].join(" ").toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
@@ -101,7 +101,7 @@ export default async function render(root, ctx) {
     }
     const tabla = el("table", { class: "table" },
       el("thead", {}, el("tr", {},
-        ...["Estudiante", "Edad", "Acudiente", "Celular", "Estado", "Semana(s)", "Ruta", "Origen", ""].map((h) => el("th", {}, h)))),
+        ...["Estudiante", "Edad", "Acudiente", "Celular", "Estado", "Semana(s)", "Ruta", "Dirección", "Origen", ""].map((h) => el("th", {}, h)))),
     );
     const tb = el("tbody", {});
     filas.forEach((d) => {
@@ -113,6 +113,7 @@ export default async function render(root, ctx) {
         el("td", {}, el("span", { class: "pill estado-" + slug(d.estado) }, d.estado || "—")),
         el("td", {}, (d.semanas || []).join(", ")),
         el("td", {}, d.ruta ? el("span", { class: "pill", title: "Requiere ruta" }, "🚌 Sí") : ""),
+        el("td", {}, d.direccion || ""),
         el("td", {}, d.origen || ""),
         el("td", { class: "row-actions" },
           el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
@@ -158,6 +159,17 @@ function editar(ctx, dato, onSave) {
   const ruta = el("input", { type: "checkbox" });
   if (d.ruta) ruta.checked = true;
 
+  const descuentosDisponibles = Array.isArray(ctx.temporada?.descuentosLista) ? ctx.temporada.descuentosLista : [];
+  const descSel = Array.isArray(d.descuentoIds) ? d.descuentoIds : [];
+  const descuentosWrap = el("div", { class: "chips-input" });
+  descuentosDisponibles.forEach((desc) => {
+    const id = desc.nombre || "";
+    const chk = el("input", { type: "checkbox", value: id });
+    if (descSel.includes(id)) chk.checked = true;
+    const valor = desc.tipo === "valor" ? `$${Number(desc.valor || 0).toLocaleString("es-CO")}` : `${Number(desc.valor) || 0}%`;
+    descuentosWrap.append(el("label", { class: "chk" }, chk, `${id} (${valor})`));
+  });
+
   const grid = el("div", { class: "form-grid" },
     campo("estudiante", "Estudiante", { ph: "Nombre del niño/a" }),
     campo("edad", "Edad", { type: "number" }),
@@ -169,6 +181,8 @@ function editar(ctx, dato, onSave) {
     campo("origen", "Origen", { tag: "select", opciones: ["", "WhatsApp", "Instagram", "Facebook", "Referido", "Antiguo", "Otro"] }),
     el("label", { class: "full" }, "Semanas de interés", semanas),
     el("label", { class: "chk full" }, ruta, " Requiere ruta"),
+    campo("direccion", "Dirección / barrio para ruta", { full: true, ph: "Dirección, barrio o punto de recogida" }),
+    descuentosDisponibles.length ? el("label", { class: "full" }, "Descuentos posibles", descuentosWrap) : null,
     campo("comentario", "Comentario", { full: true, ph: "Qué pidió, disponibilidad, objeciones…" }),
   );
 
@@ -193,6 +207,8 @@ function editar(ctx, dato, onSave) {
         origen: f.origen.value,
         comentario: f.comentario.value.trim(),
         ruta: ruta.checked,
+        direccion: f.direccion.value.trim(),
+        descuentoIds: [...descuentosWrap.querySelectorAll("input:checked")].map((c) => c.value),
         semanas: [...semanas.querySelectorAll("input:checked")].map((c) => c.value),
       };
       if (!payload.estudiante && !payload.acudiente) { toast("Pon al menos un nombre", "error"); return; }

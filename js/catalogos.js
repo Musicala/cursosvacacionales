@@ -107,6 +107,7 @@ export function semanasDetalle(temporada) {
     nombre,
     desde: (fechas[i] && fechas[i].desde) || "",
     hasta: (fechas[i] && fechas[i].hasta) || "",
+    dias: Number(fechas[i] && fechas[i].dias) || 0,
   }));
 }
 

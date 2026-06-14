@@ -9,6 +9,14 @@ function preciosPorDefecto() {
   return PAQUETES.map((p) => ({ concepto: p.nombre, valor: 0 }));
 }
 
+function descuentosPorDefecto() {
+  return [
+    { nombre: "Referido", tipo: "porcentaje", valor: 0 },
+    { nombre: "Hermano", tipo: "porcentaje", valor: 0 },
+    { nombre: "Pago anticipado", tipo: "porcentaje", valor: 0 },
+  ];
+}
+
 export default async function render(root, ctx) {
   const t = (await obtenerTemporada(ctx.temporadaId)) || ctx.temporada || { id: ctx.temporadaId };
 
@@ -35,9 +43,10 @@ export default async function render(root, ctx) {
   detalle.forEach((s) => tbS.append(el("tr", {},
     el("td", {}, s.nombre),
     el("td", {}, s.desde ? fmtFecha(s.desde) : el("span", { class: "muted" }, "sin definir")),
-    el("td", {}, s.hasta ? fmtFecha(s.hasta) : el("span", { class: "muted" }, "sin definir")))));
+    el("td", {}, s.hasta ? fmtFecha(s.hasta) : el("span", { class: "muted" }, "sin definir")),
+    el("td", {}, s.dias ? `${s.dias} día(s)` : el("span", { class: "muted" }, "sin definir")))));
   pSemanas.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
-    el("thead", {}, el("tr", {}, el("th", {}, "Semana"), el("th", {}, "Desde"), el("th", {}, "Hasta"))), tbS)));
+    el("thead", {}, el("tr", {}, el("th", {}, "Semana"), el("th", {}, "Desde"), el("th", {}, "Hasta"), el("th", {}, "Días"))), tbS)));
   root.append(pSemanas);
 
   // ----- Tabla de precios -----
@@ -55,9 +64,19 @@ export default async function render(root, ctx) {
   // ----- Descuentos -----
   const pDesc = el("div", { class: "panel" });
   pDesc.append(el("h3", {}, "🏷️ Descuentos y promociones"));
+  const descuentosLista = Array.isArray(t.descuentosLista) ? t.descuentosLista : [];
+  if (descuentosLista.length) {
+    const tbD = el("tbody", {});
+    descuentosLista.forEach((d) => tbD.append(el("tr", {},
+      el("td", {}, d.nombre || "—"),
+      el("td", {}, d.tipo === "valor" ? "Valor fijo" : "Porcentaje"),
+      el("td", {}, d.tipo === "valor" ? cop(d.valor) : `${Number(d.valor) || 0}%`))));
+    pDesc.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
+      el("thead", {}, el("tr", {}, el("th", {}, "Descuento"), el("th", {}, "Tipo"), el("th", {}, "Valor"))), tbD)));
+  }
   pDesc.append(t.descuentos
     ? el("div", { class: "nota-texto" }, t.descuentos)
-    : el("div", { class: "empty" }, "Sin descuentos registrados. Edita la info para agregarlos."));
+    : (descuentosLista.length ? null : el("div", { class: "empty" }, "Sin descuentos registrados. Edita la info para agregarlos.")));
   root.append(pDesc);
 
   // ----- Ruta / notas -----
@@ -107,6 +126,29 @@ export function formularioTemporada(t, onSave) {
   pintarPrecios();
   const addPrecio = el("button", { class: "btn ghost small", onclick: () => { precios.push({ concepto: "", valor: 0 }); pintarPrecios(); } }, "+ Agregar precio");
 
+  const descuentosLista = Array.isArray(d.descuentosLista) && d.descuentosLista.length
+    ? d.descuentosLista.map((x) => ({ ...x }))
+    : descuentosPorDefecto();
+  const filasDescuentos = el("div", { class: "precio-edit" });
+  function pintarDescuentos() {
+    filasDescuentos.innerHTML = "";
+    descuentosLista.forEach((desc, i) => {
+      const nombre = el("input", { type: "text", value: desc.nombre || "", placeholder: "Ej: Referido" });
+      nombre.oninput = () => (descuentosLista[i].nombre = nombre.value);
+      const tipo = el("select", {},
+        el("option", { value: "porcentaje" }, "Porcentaje"),
+        el("option", { value: "valor" }, "Valor fijo"));
+      tipo.value = desc.tipo || "porcentaje";
+      tipo.oninput = () => (descuentosLista[i].tipo = tipo.value);
+      const valor = el("input", { type: "number", value: desc.valor || "", placeholder: "0" });
+      valor.oninput = () => (descuentosLista[i].valor = Number(valor.value) || 0);
+      filasDescuentos.append(el("div", { class: "precio-row" }, nombre, tipo, valor,
+        el("button", { class: "btn ghost small", onclick: () => { descuentosLista.splice(i, 1); pintarDescuentos(); } }, "🗑")));
+    });
+  }
+  pintarDescuentos();
+  const addDescuento = el("button", { class: "btn ghost small", onclick: () => { descuentosLista.push({ nombre: "", tipo: "porcentaje", valor: 0 }); pintarDescuentos(); } }, "+ Agregar descuento");
+
   const descuentos = el("textarea", { rows: "3", placeholder: "Ej: 10% por hermano, 5% pago anticipado, descuento por semana completa…" });
   descuentos.value = d.descuentos || "";
   const notas = el("textarea", { rows: "2", placeholder: "Notas internas de la temporada…" });
@@ -132,8 +174,10 @@ export function formularioTemporada(t, onSave) {
       desde.oninput = () => (semanasFechas[i].desde = desde.value);
       const hasta = el("input", { type: "date", value: s.hasta || "" });
       hasta.oninput = () => (semanasFechas[i].hasta = hasta.value);
+      const dias = el("input", { type: "number", min: "1", max: "7", value: s.dias || "", placeholder: "Días" });
+      dias.oninput = () => (semanasFechas[i].dias = Number(dias.value) || 0);
       filasSemanas.append(el("div", { class: "precio-row" },
-        el("span", { class: "sem-label" }, `Semana ${i + 1}`), desde, hasta));
+        el("span", { class: "sem-label" }, `Semana ${i + 1}`), desde, hasta, dias));
     });
   }
 
@@ -172,6 +216,9 @@ export function formularioTemporada(t, onSave) {
     el("div", { class: "checks" }, ...diasChecks),
     el("h4", {}, "💲 Precios de los paquetes"),
     filasPrecios, addPrecio,
+    el("h4", {}, "Descuentos configurables"),
+    el("p", { class: "muted small" }, "Estos descuentos se pueden marcar en Contactos o al hacer la inscripción. Si marcas varios, se acumulan."),
+    filasDescuentos, addDescuento,
     el("label", { class: "block-label" }, "🏷️ Descuentos y promociones", descuentos),
     el("label", { class: "block-label" }, "Notas", notas),
   );
@@ -197,8 +244,13 @@ export function formularioTemporada(t, onSave) {
           const sel = diasChecks.map((l) => l.querySelector("input")).filter((c) => c.checked).map((c) => c.value);
           return sel.length ? sel : DIAS;
         })(),
-        semanasFechas: semanasFechas.map((s) => ({ desde: s.desde || "", hasta: s.hasta || "" })),
+        semanasFechas: semanasFechas.map((s) => ({ desde: s.desde || "", hasta: s.hasta || "", dias: Number(s.dias) || 0 })),
         precios: precios.filter((p) => p.concepto.trim()),
+        descuentosLista: descuentosLista.filter((d) => d.nombre.trim()).map((d) => ({
+          nombre: d.nombre.trim(),
+          tipo: d.tipo === "valor" ? "valor" : "porcentaje",
+          valor: Number(d.valor) || 0,
+        })),
         descuentos: descuentos.value.trim(),
         notas: notas.value.trim(),
       };
