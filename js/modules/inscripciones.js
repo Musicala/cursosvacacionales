@@ -244,14 +244,18 @@ function editar(ctx, dato, onSave) {
     return [...semWrap.querySelectorAll("input:checked")].map((c) => c.value);
   }
 
-  function recalcularValor() {
-    const calc = calcularPrecio({
+  function calcularPrecioActual() {
+    return calcularPrecio({
       semanas: semanasSeleccionadas(),
       detalleSemanas: ctx._semanasDetalle,
       precios,
       descuentosLista: descuentosDisponibles,
       descuentoIds: descuentosSeleccionados(),
     });
+  }
+
+  function recalcularValor() {
+    const calc = calcularPrecioActual();
     if (calc.valorFinal || calc.valorBase) f.valor.value = calc.valorFinal;
     f.paquete.value = calc.paquete && nombresPaquete.includes(calc.paquete) ? calc.paquete : f.paquete.value;
     resumenPrecio.textContent = calc.horas
@@ -283,11 +287,11 @@ function editar(ctx, dato, onSave) {
   modal(dato ? "Editar inscripción" : "Inscribir estudiante", grid, [
     { texto: "Cancelar", clase: "ghost" },
     { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
-      const calc = recalcularValor();
+      const calc = calcularPrecioActual();
       const payload = {
         fechaInscripcion: fecha.value || hoyISO(),
         estudiante: f.estudiante.value.trim(), edad: f.edad.value ? Number(f.edad.value) : null,
-        grupo: f.grupo.value, paquete: calc.paquete || f.paquete.value,
+        grupo: f.grupo.value, paquete: f.paquete.value || calc.paquete,
         horario: selHorario.value === HORARIO_INTENSIVO ? (horarioCustom.value.trim() || HORARIO_INTENSIVO) : HORARIO_ESTANDAR,
         valor: f.valor.value ? Number(f.valor.value) : 0, estadoPago: f.estadoPago.value,
         medioPago: f.medioPago.value.trim(), acudiente: f.acudiente.value.trim(), celular: f.celular.value.trim(),
