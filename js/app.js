@@ -1,4 +1,4 @@
-import { onAuth, login, logout, correoPermitido } from "./firebase.js";
+import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./firebase.js";
 import { $, el, toast, fmtCorta } from "./ui.js";
 import { listarTemporadas, crearTemporada } from "./db.js";
 
@@ -49,6 +49,14 @@ function modulosVisibles() {
 }
 
 // ---------- Arranque / autenticación ----------
+// Si la sesión llegó por redirect (respaldo cuando el popup no se pudo),
+// recuperamos la credencial para conectar también la base general.
+resultadoRedirect().then(async (cred) => {
+  if (cred) {
+    try { await conectarConCredencial(cred); } catch (e) { console.warn("No se pudo conectar base general tras redirect", e); }
+  }
+});
+
 onAuth(async (user) => {
   if (!user) return mostrarLogin();
   const correo = (user.email || "").toLowerCase();
