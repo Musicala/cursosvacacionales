@@ -1,7 +1,7 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
-import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js";
-import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas } from "../db.js";
-import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js";
+import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js?v=1";
+import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas } from "../db.js?v=1";
+import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=1";
 
 export default async function render(root, ctx) {
   // Precios de la temporada (para autocompletar el valor según el paquete).

@@ -1,7 +1,7 @@
 // Módulo Musicafé (onces): registro de consumo diario por estudiante y cuenta acumulada.
-import { el, cop, toast, modal, confirmar, hoyISO } from "../ui.js";
-import { listar, crear, eliminar, leerConfig, guardarConfig } from "../db.js";
-import { MUSICAFE_PRODUCTOS, MUSICAFE_CATEGORIAS } from "../catalogos.js";
+import { el, cop, toast, modal, confirmar, hoyISO } from "../ui.js?v=1";
+import { listar, crear, eliminar, leerConfig, guardarConfig } from "../db.js?v=1";
+import { MUSICAFE_PRODUCTOS, MUSICAFE_CATEGORIAS } from "../catalogos.js?v=1";
 
 let PRECIOS = MUSICAFE_PRODUCTOS;
 

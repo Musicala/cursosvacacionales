@@ -1,8 +1,8 @@
 // Módulo Info temporada: fechas, precios, descuentos y valor de ruta.
 // Guarda todo en el documento de la temporada -> queda como histórico por temporada.
-import { el, cop, toast, modal, fmtFecha, fmtCorta } from "../ui.js";
-import { obtenerTemporada, actualizarTemporada } from "../db.js";
-import { PAQUETES, RUTA_MINIMO, DIAS, DIAS_POSIBLES, NUM_SEMANAS_DEFAULT, semanasDetalle } from "../catalogos.js";
+import { el, cop, toast, modal, fmtFecha, fmtCorta } from "../ui.js?v=1";
+import { obtenerTemporada, actualizarTemporada } from "../db.js?v=1";
+import { PAQUETES, RUTA_MINIMO, DIAS, DIAS_POSIBLES, NUM_SEMANAS_DEFAULT, semanasDetalle } from "../catalogos.js?v=1";
 
 // Precios por defecto (concepto + valor) para una temporada nueva.
 function preciosPorDefecto() {

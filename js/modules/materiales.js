@@ -1,7 +1,7 @@
 // Módulo Materiales: lista de insumos por taller/docente para alistar salones.
-import { el, toast, modal, confirmar } from "../ui.js";
-import { listar, crear, actualizar, eliminar } from "../db.js";
-import { AREAS, semanasDe, diasDe } from "../catalogos.js";
+import { el, toast, modal, confirmar } from "../ui.js?v=1";
+import { listar, crear, actualizar, eliminar } from "../db.js?v=1";
+import { AREAS, semanasDe, diasDe } from "../catalogos.js?v=1";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },

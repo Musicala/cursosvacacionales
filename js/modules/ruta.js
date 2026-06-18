@@ -1,7 +1,7 @@
 // Módulo Ruta: interesados (contactos) y confirmados (inscritos), con viabilidad vs. el mínimo.
-import { el, toast, modal } from "../ui.js";
-import { listar, actualizar, obtenerTemporada, actualizarTemporada } from "../db.js";
-import { RUTA_MINIMO } from "../catalogos.js";
+import { el, toast, modal } from "../ui.js?v=1";
+import { listar, actualizar, obtenerTemporada, actualizarTemporada } from "../db.js?v=1";
+import { RUTA_MINIMO } from "../catalogos.js?v=1";
 
 export default async function render(root, ctx) {
   root.innerHTML = "";

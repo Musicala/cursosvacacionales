@@ -1,7 +1,7 @@
 // Módulo Asistencia: marca diaria por estudiante inscrito.
-import { el, toast, hoyISO } from "../ui.js";
-import { listar, crear, actualizar } from "../db.js";
-import { ASISTENCIA } from "../catalogos.js";
+import { el, toast, hoyISO } from "../ui.js?v=1";
+import { listar, crear, actualizar } from "../db.js?v=1";
+import { ASISTENCIA } from "../catalogos.js?v=1";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" }, el("h2", {}, "📝 Asistencia")));

@@ -1,5 +1,5 @@
 // Módulo Musipuntos: incrusta la app de Musipuntos dentro del panel.
-import { el } from "../ui.js";
+import { el } from "../ui.js?v=1";
 
 const URL_MUSIPUNTOS = "https://musicalaescuela.github.io/musipuntos/";
 

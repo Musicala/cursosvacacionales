@@ -7,7 +7,7 @@
 //   temporadas/{temporadaId}/asistencia/{id}         -> registros de asistencia
 //   temporadas/{temporadaId}/musicafe/{id}           -> consumos de onces
 //   config/global                                    -> catálogos editables (precios, docentes...)
-import { db } from "./firebase.js";
+import { db } from "./firebase.js?v=1";
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, serverTimestamp, onSnapshot,
