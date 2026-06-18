@@ -7,8 +7,8 @@ import {
 import {
   getFirestore, collection, getDocs, doc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { baseGeneralConfig, BG, MAPEO_CAMPOS } from "../firebase-base-general.js?v=1";
-import { normTexto } from "./dedup.js?v=1";
+import { baseGeneralConfig, BG, MAPEO_CAMPOS } from "../firebase-base-general.js?v=2";
+import { normTexto } from "./dedup.js?v=2";
 
 const APP_NAME = "baseGeneral";
 

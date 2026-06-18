@@ -1,6 +1,6 @@
 // Módulo Estadísticas: compara todas las temporadas (inscritos, ingresos, recaudo…).
-import { el, cop, fmtCorta } from "../ui.js?v=1";
-import { listarTemporadas, listar } from "../db.js?v=1";
+import { el, cop, fmtCorta } from "../ui.js?v=2";
+import { listarTemporadas, listar } from "../db.js?v=2";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" }, el("h2", {}, "📈 Estadísticas")));

@@ -5,7 +5,7 @@ import {
   browserLocalPersistence, setPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, CORREOS_PERMITIDOS } from "../firebase-config.js?v=1";
+import { firebaseConfig, CORREOS_PERMITIDOS } from "../firebase-config.js?v=2";
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -17,18 +17,23 @@ provider.setCustomParameters({ prompt: "select_account" });
 
 // Inicia sesión y devuelve la credencial de Google (sirve para entrar también
 // al otro proyecto sin pedir un segundo popup).
-// Usamos popup en todos lados (incluido móvil): signInWithRedirect entre dominios
-// distintos (app en github.io, authDomain en firebaseapp.com) no completa la sesión
-// en navegadores móviles por el aislamiento de almacenamiento. El popup no depende
-// de ese redirect. Solo caemos a redirect si el popup falla de verdad.
+// En móvil usamos redirect (el popup se cierra solo en Chrome móvil →
+// auth/popup-closed-by-user). El redirect lo completa resultadoRedirect()
+// con getRedirectResult al volver de Google. En escritorio usamos popup,
+// que devuelve la credencial directo y evita recargar la página.
 export async function login() {
+  const ua = navigator.userAgent || "";
+  const esMovil = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  if (esMovil) {
+    await signInWithRedirect(auth, provider);
+    return null;
+  }
   try {
     const result = await signInWithPopup(auth, provider);
     return GoogleAuthProvider.credentialFromResult(result);
   } catch (e) {
-    // Si el usuario cerró/canceló el popup, no insistimos con redirect.
     if (["auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(e.code)) throw e;
-    // Popup bloqueado o no soportado (algunos WebView): intentamos redirect.
+    // Popup bloqueado o no soportado: caemos a redirect.
     await signInWithRedirect(auth, provider);
     return null;
   }
