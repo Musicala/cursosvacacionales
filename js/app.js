@@ -110,7 +110,10 @@ function mostrarLogin() {
         const cred = await login();
         // Conecta también la base general con el mismo login (sin segundo popup).
         if (cred) await conectarConCredencial(cred);
-      } catch (e) { toast("No se pudo iniciar sesión", "error"); }
+      } catch (e) {
+        const detalle = e && (e.code || e.message) ? ` (${e.code || e.message})` : "";
+        toast("No se pudo iniciar sesión" + detalle, "error");
+      }
     } }, "Entrar con Google"),
     el("p", { class: "muted small" }, "Acceso solo para correos autorizados."),
   );
