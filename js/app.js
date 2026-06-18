@@ -58,7 +58,16 @@ onAuth(async (user) => {
     estado.docente = null;
   } else {
     // ¿Es un docente registrado? (su correo está en config/global → docentes).
-    const docente = await buscarDocentePorCorreo(correo);
+    let docente;
+    try {
+      docente = await buscarDocentePorCorreo(correo);
+    } catch (e) {
+      await logout();
+      return mostrarErrorAcceso(
+        "No pudimos verificar el acceso docente.",
+        "La sesión de Google entró, pero Firestore no permitió leer la lista de docentes. Revisa que las reglas publicadas permitan leer config/global y que el correo esté guardado en Docentes."
+      );
+    }
     if (!docente) {
       toast("Ese correo no tiene acceso: " + user.email, "error");
       await logout();
@@ -76,13 +85,9 @@ onAuth(async (user) => {
 
 // Busca en la configuración un docente cuyo correo coincida.
 async function buscarDocentePorCorreo(correo) {
-  try {
-    const cfg = await leerConfig();
-    const docs = (cfg && Array.isArray(cfg.docentes)) ? cfg.docentes : [];
-    return docs.find((d) => (d.correo || "").toLowerCase() === correo) || null;
-  } catch {
-    return null;
-  }
+  const cfg = await leerConfig();
+  const docs = (cfg && Array.isArray(cfg.docentes)) ? cfg.docentes : [];
+  return docs.find((d) => (d.correo || "").toLowerCase() === correo) || null;
 }
 
 function mostrarLogin() {
@@ -100,6 +105,18 @@ function mostrarLogin() {
       } catch (e) { toast("No se pudo iniciar sesión", "error"); }
     } }, "Entrar con Google"),
     el("p", { class: "muted small" }, "Acceso solo para correos autorizados."),
+  );
+  document.body.append(el("div", { class: "login-wrap" }, card));
+}
+
+function mostrarErrorAcceso(titulo, detalle) {
+  estado.usuario = null;
+  document.body.innerHTML = "";
+  const card = el("div", { class: "login-card" },
+    el("img", { src: "logo.png", alt: "Musicala", class: "login-logo" }),
+    el("h1", {}, titulo),
+    el("p", { class: "muted" }, detalle),
+    el("button", { class: "btn primary big", onclick: mostrarLogin }, "Intentar de nuevo"),
   );
   document.body.append(el("div", { class: "login-wrap" }, card));
 }
