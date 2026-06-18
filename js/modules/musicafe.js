@@ -22,7 +22,10 @@ export default async function render(root, ctx) {
     el("div", { class: "right" },
       ctx.rol === "docente" ? null : el("button", { class: "btn ghost", onclick: () => editarPrecios(() => render((root.innerHTML = "", root), ctx)) }, "✏️ Editar precios"),
       el("button", { class: "btn ghost", onclick: () => verPrecios() }, "Ver precios"),
-      el("button", { class: "btn primary", onclick: () => registrar(ctx, cargar) }, "+ Registrar consumo"),
+      el("button", { class: "btn primary", onclick: async () => {
+        try { await registrar(ctx, cargar); }
+        catch (e) { toast("No se pudo cargar la lista de inscritos: " + e.message, "error"); }
+      } }, "+ Registrar consumo"),
     ),
   ));
 
@@ -89,9 +92,18 @@ export default async function render(root, ctx) {
   await cargar();
 }
 
-function registrar(ctx, onSave) {
+async function registrar(ctx, onSave) {
   const fecha = el("input", { type: "date", value: hoyISO() });
-  const est = el("input", { type: "text", placeholder: "Nombre del estudiante" });
+  const inscritos = (await listar(ctx.temporadaId, "inscripciones"))
+    .map((i) => (i.estudiante || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  const nombres = [...new Set(inscritos)];
+  const est = nombres.length
+    ? el("select", {},
+      el("option", { value: "" }, "Selecciona un estudiante"),
+      ...nombres.map((nombre) => el("option", { value: nombre }, nombre)))
+    : el("input", { type: "text", placeholder: "Nombre del estudiante" });
   const lista = el("div", { class: "prod-list" });
   porCategoria(PRECIOS).forEach((g) => {
     lista.append(el("div", { class: "prod-cat" }, g.categoria));

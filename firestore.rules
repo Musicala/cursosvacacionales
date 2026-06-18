@@ -23,6 +23,37 @@ service cloud.firestore {
     }
 
     // Subcolecciones operativas que el docente SÍ puede editar.
+    function correoAuth() {
+      return request.auth.token.email.lower();
+    }
+
+    function esClasePropia() {
+      return resource.data.get('docenteCorreo', '') == correoAuth();
+    }
+
+    function soloEditaPlaneacion() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'planeacion',
+        'actividades',
+        'recursos',
+        'observacionesPlaneacion',
+        'docenteCorreo',
+        'actualizado'
+      ]);
+    }
+
+    match /config/global {
+      allow read: if request.auth != null;
+      allow write: if esAdmin();
+    }
+
+    match /temporadas/{temporadaId}/grupos/{grupoId} {
+      allow read: if esAdmin() || esDocente();
+      allow create, delete: if esAdmin();
+      allow update: if esAdmin()
+        || (esDocente() && esClasePropia() && soloEditaPlaneacion());
+    }
+
     match /temporadas/{temporadaId}/{sub}/{docId} {
       allow read: if esAdmin() || esDocente();
       allow write: if esAdmin()

@@ -8,6 +8,7 @@ let DOCS = DOCENTES;
 export default async function render(root, ctx) {
   const cfg = await leerConfig();
   if (cfg && Array.isArray(cfg.docentes) && cfg.docentes.length) DOCS = cfg.docentes;
+  if (ctx.rol !== "docente") await asegurarCorreosDocentes();
 
   // El docente solo ve (no edita) y únicamente su propio horario.
   const soloLectura = ctx.rol === "docente";
@@ -43,6 +44,7 @@ export default async function render(root, ctx) {
   let datos = [];
   async function cargar() {
     datos = await listar(ctx.temporadaId, "grupos");
+    if (!soloLectura) await sincronizarCorreosDocentes(ctx, datos);
     if (soloLectura) datos = datos.filter((d) => (d.docente || "") === docenteNombre);
     pintar();
   }
@@ -52,7 +54,7 @@ export default async function render(root, ctx) {
     cont.innerHTML = "";
     if (!filas.length) { cont.append(el("div", { class: "empty" }, soloLectura ? "No tienes clases asignadas en esta temporada." : "Sin clases asignadas. Usa “+ Asignar clase”.")); return; }
     if (vista === "horario") pintarHorario(filas, sem);
-    else pintarLista(filas);
+    else pintarListaPlaneacionLimpia(filas);
   }
 
   function pintarLista(filas) {
@@ -68,6 +70,58 @@ export default async function render(root, ctx) {
     )));
     const cols = ["Semana", "Día", "Hora", "Grupo", "Área", "Taller/Temática", "Docente", "Salón"];
     if (!soloLectura) cols.push("");
+    cont.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
+      el("thead", {}, el("tr", {}, ...cols.map((h) => el("th", {}, h)))), tb)));
+  }
+
+  function pintarListaPlaneacion(filas) {
+    const tb = el("tbody", {});
+    filas.sort((a, b) => (a.semana + a.dia + (a.horaInicio || "")).localeCompare(b.semana + b.dia + (b.horaInicio || "")));
+    filas.forEach((d) => tb.append(el("tr", {},
+      el("td", {}, d.semana),
+      el("td", {}, d.dia),
+      el("td", {}, rangoHoras(d) || "â€”"),
+      el("td", {}, d.grupo),
+      el("td", {}, d.area),
+      el("td", {}, d.taller || ""),
+      el("td", {}, el("strong", {}, d.docente || "â€”")),
+      el("td", {}, d.salon || ""),
+      el("td", {}, estadoPlaneacion(d)),
+      el("td", { class: "row-actions" },
+        el("button", { class: "btn ghost small", onclick: () => editarPlaneacion(ctx, d, cargar) }, "Planeacion"),
+        soloLectura ? null : [
+          el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
+          el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "ðŸ—‘"),
+        ],
+      ),
+    )));
+    const cols = ["Semana", "Dia", "Hora", "Grupo", "Area", "Taller/Tematica", "Docente", "Salon", "Planeacion", ""];
+    cont.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
+      el("thead", {}, el("tr", {}, ...cols.map((h) => el("th", {}, h)))), tb)));
+  }
+
+  function pintarListaPlaneacionLimpia(filas) {
+    const tb = el("tbody", {});
+    filas.sort((a, b) => (a.semana + a.dia + (a.horaInicio || "")).localeCompare(b.semana + b.dia + (b.horaInicio || "")));
+    filas.forEach((d) => tb.append(el("tr", {},
+      el("td", {}, d.semana),
+      el("td", {}, d.dia),
+      el("td", {}, rangoHoras(d) || "-"),
+      el("td", {}, d.grupo),
+      el("td", {}, d.area),
+      el("td", {}, d.taller || ""),
+      el("td", {}, el("strong", {}, d.docente || "-")),
+      el("td", {}, d.salon || ""),
+      el("td", {}, estadoPlaneacion(d)),
+      el("td", { class: "row-actions" },
+        el("button", { class: "btn ghost small", onclick: () => editarPlaneacion(ctx, d, cargar) }, "Planeación"),
+        soloLectura ? null : [
+          el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
+          el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "Eliminar"),
+        ],
+      ),
+    )));
+    const cols = ["Semana", "Día", "Hora", "Grupo", "Área", "Taller/Temática", "Docente", "Salón", "Planeación", ""];
     cont.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
       el("thead", {}, el("tr", {}, ...cols.map((h) => el("th", {}, h)))), tb)));
   }
@@ -88,8 +142,8 @@ export default async function render(root, ctx) {
             .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""));
           if (!celdas.length) return el("td", { class: "h-vacia" }, "");
           return el("td", { class: "h-celda" }, ...celdas.map((d) => el("div", {
-            class: "h-clase", title: soloLectura ? "" : "Clic para editar",
-            onclick: soloLectura ? null : () => editar(ctx, d, cargar),
+            class: "h-clase", title: soloLectura ? "Clic para agregar planeación" : "Clic para editar",
+            onclick: soloLectura ? () => editarPlaneacion(ctx, d, cargar) : () => editar(ctx, d, cargar),
           },
             rangoHoras(d) ? el("div", { class: "h-hora" }, "🕘 " + rangoHoras(d)) : null,
             el("div", { class: "h-area" }, d.area || "—"),
@@ -139,7 +193,7 @@ export default async function render(root, ctx) {
           for (const destino of objetivos) {
             for (const c of clases) {
               const { id, creado, actualizado, ...resto } = c;
-              await crear(ctx.temporadaId, "grupos", { ...resto, semana: destino });
+              await crear(ctx.temporadaId, "grupos", { ...resto, semana: destino, docenteCorreo: resto.docenteCorreo || correoDocente(resto.docente) });
               total++;
             }
           }
@@ -161,6 +215,71 @@ function rangoHoras(d) {
   const a = d.horaInicio || "", b = d.horaFin || "";
   if (!a && !b) return "";
   return [a, b].filter(Boolean).join("–");
+}
+
+function correoDocente(nombre) {
+  return (DOCS.find((x) => x.nombre === nombre)?.correo || "").trim().toLowerCase();
+}
+
+async function sincronizarCorreosDocentes(ctx, clases) {
+  const pendientes = clases.filter((c) => {
+    const correo = correoDocente(c.docente);
+    return c.id && correo && c.docenteCorreo !== correo;
+  });
+  for (const clase of pendientes) {
+    const correo = correoDocente(clase.docente);
+    await actualizar(ctx.temporadaId, "grupos", clase.id, { docenteCorreo: correo });
+    clase.docenteCorreo = correo;
+  }
+}
+
+function estadoPlaneacion(d, compacto = false) {
+  const tiene = Boolean((d.planeacion || "").trim() || (d.actividades || "").trim());
+  if (compacto) return el("div", { class: "h-plan " + (tiene ? "ok" : "") }, tiene ? "Planeada" : "Sin planeación");
+  return el("span", { class: "pill " + (tiene ? "plan-ok" : "plan-pending") }, tiene ? "Planeada" : "Pendiente");
+}
+
+function editarPlaneacion(ctx, dato, onSave) {
+  const d = dato || {};
+  const planeacion = el("textarea", { rows: "5", placeholder: "Objetivo, enfoque o planeación de la clase" });
+  planeacion.value = d.planeacion || "";
+  const actividades = el("textarea", { rows: "5", placeholder: "Actividades paso a paso que se realizaran" });
+  actividades.value = d.actividades || "";
+  const recursos = el("textarea", { rows: "3", placeholder: "Materiales, canciones, instrumentos o recursos" });
+  recursos.value = d.recursos || "";
+  const observacionesPlaneacion = el("textarea", { rows: "3", placeholder: "Notas para coordinación o seguimiento" });
+  observacionesPlaneacion.value = d.observacionesPlaneacion || "";
+  const encabezado = [d.semana, d.dia, rangoHoras(d), d.grupo, d.area].filter(Boolean).join(" · ");
+
+  const grid = el("div", { class: "form-grid planning-form" },
+    el("div", { class: "full planning-class-summary" },
+      el("strong", {}, d.taller || d.area || "Clase"),
+      el("span", { class: "muted small" }, encabezado),
+      el("span", { class: "muted small" }, d.docente || "")),
+    el("label", { class: "full" }, "Planeación", planeacion),
+    el("label", { class: "full" }, "Actividades de clase", actividades),
+    el("label", { class: "full" }, "Recursos / materiales", recursos),
+    el("label", { class: "full" }, "Observaciones", observacionesPlaneacion),
+  );
+
+  modal("Planeación de clase", grid, [
+    { texto: "Cancelar", clase: "ghost" },
+    { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
+      const payload = {
+        planeacion: planeacion.value.trim(),
+        actividades: actividades.value.trim(),
+        recursos: recursos.value.trim(),
+        observacionesPlaneacion: observacionesPlaneacion.value.trim(),
+        docenteCorreo: d.docenteCorreo || correoDocente(d.docente),
+      };
+      try {
+        await actualizar(ctx.temporadaId, "grupos", d.id, payload);
+        dlg.close();
+        toast("Planeación guardada");
+        onSave && onSave();
+      } catch (e) { toast("Error: " + e.message, "error"); }
+    } },
+  ]);
 }
 
 function editar(ctx, dato, onSave) {
@@ -201,7 +320,7 @@ function editar(ctx, dato, onSave) {
   modal(dato ? "Editar clase" : "Asignar clase", grid, [
     { texto: "Cancelar", clase: "ghost" },
     { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
-      const payload = { semana: f.semana.value, dia: f.dia.value, grupo: f.grupo.value, area: f.area.value, docente: f.docente.value, salon: f.salon.value.trim(), taller: f.taller.value.trim(), horaInicio: f.horaInicio.value, horaFin: f.horaFin.value };
+      const payload = { semana: f.semana.value, dia: f.dia.value, grupo: f.grupo.value, area: f.area.value, docente: f.docente.value, docenteCorreo: correoDocente(f.docente.value), salon: f.salon.value.trim(), taller: f.taller.value.trim(), horaInicio: f.horaInicio.value, horaFin: f.horaFin.value };
       try {
         if (dato) await actualizar(ctx.temporadaId, "grupos", dato.id, payload);
         else await crear(ctx.temporadaId, "grupos", payload);
@@ -223,6 +342,13 @@ async function persistirDocentes() {
   } catch (e) {
     toast("Error al guardar: " + e.message, "error");
   }
+}
+
+async function asegurarCorreosDocentes() {
+  const docentesCorreos = DOCS
+    .map((d) => (d.correo || "").trim().toLowerCase())
+    .filter(Boolean);
+  if (docentesCorreos.length) await guardarConfig({ docentesCorreos });
 }
 
 function verDocentes() {

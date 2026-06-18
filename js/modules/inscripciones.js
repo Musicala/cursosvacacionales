@@ -1,7 +1,7 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
 import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js";
 import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas } from "../db.js";
-import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js";
+import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js";
 
 export default async function render(root, ctx) {
   // Precios de la temporada (para autocompletar el valor según el paquete).
@@ -11,6 +11,7 @@ export default async function render(root, ctx) {
   ctx._semanas = semanasDe(temp);
   ctx._semanasDetalle = semanasDetalle(temp);
   ctx._descuentosLista = Array.isArray(temp.descuentosLista) ? temp.descuentosLista : [];
+  ctx._diasTemporada = diasDe(temp);
   // Lista de temporadas (para poder asignar/mover cada inscrito).
   ctx._temporadas = await listarTemporadas();
   // Contactos de la temporada: para inscribir eligiendo de la lista (sin reescribir datos).
@@ -29,6 +30,7 @@ export default async function render(root, ctx) {
   root.append(cont);
 
   let datos = [];
+  const filtros = { q: "", semana: "", dia: "", grupo: "", pago: "", vista: "tabla", orden: "semana" };
   async function cargar() {
     datos = await listar(ctx.temporadaId, "inscripciones");
     pintar();
@@ -51,11 +53,28 @@ export default async function render(root, ctx) {
       cont.append(el("div", { class: "empty" }, "Aún no hay inscritos en esta temporada."));
       return;
     }
+    const filtrados = ordenarInscripciones(filtrarInscripciones(datos, filtros, ctx), filtros.orden, ctx);
+    cont.append(crearControlesInscripciones(datos, filtros, ctx, pintar));
+    cont.append(el("div", { class: "insc-count" }, `${filtrados.length} de ${total} inscritos visibles`));
+    if (!filtrados.length) {
+      cont.append(el("div", { class: "empty" }, "No hay inscritos con esos filtros."));
+      return;
+    }
+    if (filtros.vista === "tarjetas") {
+      cont.append(vistaTarjetas(filtrados, ctx, cargar));
+      return;
+    }
+    if (filtros.vista === "semanas") {
+      cont.append(vistaSemanas(filtrados, ctx, cargar));
+      return;
+    }
+    cont.append(vistaTabla(filtrados, ctx, cargar));
+    return;
     const tabla = el("table", { class: "table" },
       el("thead", {}, el("tr", {},
         ...["Inscrito el", "Estudiante", "Edad", "Grupo", "Paquete", "Semana(s)", "Horario", "Valor", "Descuento", "Pago", "Ruta", "Dirección", ""].map((h) => el("th", {}, h)))));
     const tb = el("tbody", {});
-    datos.forEach((d) => {
+    filtrados.forEach((d) => {
       tb.append(el("tr", {},
         el("td", {}, d.fechaInscripcion ? fmtFecha(d.fechaInscripcion) : el("span", { class: "muted" }, "—")),
         el("td", {}, el("strong", {}, d.estudiante || "—")),
@@ -79,6 +98,186 @@ export default async function render(root, ctx) {
     cont.append(el("div", { class: "table-wrap" }, tabla));
   }
   await cargar();
+}
+
+function crearControlesInscripciones(datos, filtros, ctx, onChange) {
+  const semanas = ctx._semanas || [];
+  const dias = ctx._diasTemporada || [];
+  const grupos = [...new Set(datos.map((d) => d.grupo).filter(Boolean))].sort();
+  const pagos = [...new Set(datos.map((d) => d.estadoPago).filter(Boolean))].sort();
+  const set = (k, v) => { filtros[k] = v; onChange(); };
+  const opt = (value, label) => el("option", { value }, label);
+  const selected = (select, value) => { select.value = value; return select; };
+  const vistaBtn = (value, label) => el("button", {
+    class: "btn small " + (filtros.vista === value ? "primary" : "ghost"),
+    onclick: () => set("vista", value),
+  }, label);
+
+  const buscar = el("input", { type: "search", placeholder: "Buscar estudiante, acudiente, celular o direccion" });
+  buscar.value = filtros.q;
+  buscar.addEventListener("input", () => { filtros.q = buscar.value; onChange(); });
+
+  const semanaSel = selected(el("select", { onchange: (e) => set("semana", e.target.value) },
+    opt("", "Todas las semanas"),
+    ...semanas.map((s) => opt(s, s)),
+  ), filtros.semana);
+  const diaSel = selected(el("select", { onchange: (e) => set("dia", e.target.value) },
+    opt("", "Todos los dias"),
+    ...dias.map((d) => opt(d, d)),
+  ), filtros.dia);
+  const grupoSel = selected(el("select", { onchange: (e) => set("grupo", e.target.value) },
+    opt("", "Todos los grupos"),
+    ...grupos.map((g) => opt(g, g)),
+  ), filtros.grupo);
+  const pagoSel = selected(el("select", { onchange: (e) => set("pago", e.target.value) },
+    opt("", "Todos los pagos"),
+    ...pagos.map((p) => opt(p, p)),
+  ), filtros.pago);
+  const ordenSel = selected(el("select", { onchange: (e) => set("orden", e.target.value) },
+    opt("semana", "Orden: semana"),
+    opt("nombre", "Orden: nombre"),
+    opt("grupo", "Orden: grupo"),
+    opt("edad", "Orden: edad"),
+    opt("pago", "Orden: pago"),
+    opt("fecha", "Orden: inscritos recientes"),
+  ), filtros.orden);
+
+  return el("div", { class: "insc-tools" },
+    el("div", { class: "insc-search" }, buscar),
+    el("div", { class: "filters insc-filters" },
+      el("label", {}, "Semana", semanaSel),
+      el("label", {}, "Dia", diaSel),
+      el("label", {}, "Grupo", grupoSel),
+      el("label", {}, "Pago", pagoSel),
+      el("label", {}, "Ordenar", ordenSel),
+    ),
+    el("div", { class: "insc-viewbar" },
+      vistaBtn("tabla", "Tabla"),
+      vistaBtn("tarjetas", "Tarjetas"),
+      vistaBtn("semanas", "Por semana"),
+      el("button", { class: "btn small ghost", onclick: () => {
+        filtros.q = ""; filtros.semana = ""; filtros.dia = ""; filtros.grupo = ""; filtros.pago = ""; filtros.orden = "semana"; onChange();
+      } }, "Limpiar"),
+    ),
+  );
+}
+
+function textoBusqueda(d) {
+  return [d.estudiante, d.acudiente, d.celular, d.grupo, d.direccion, d.observaciones].filter(Boolean).join(" ").toLowerCase();
+}
+
+function diasDeInscrito(d, semana, ctx) {
+  const todos = ctx._diasTemporada || [];
+  const porSemana = d.diasPorSemana || {};
+  const dias = Array.isArray(porSemana[semana]) ? porSemana[semana] : todos;
+  return dias.filter((dia) => todos.includes(dia));
+}
+
+function tieneDia(d, dia, ctx) {
+  if (!dia) return true;
+  return (d.semanas || []).some((semana) => diasDeInscrito(d, semana, ctx).includes(dia));
+}
+
+function filtrarInscripciones(datos, filtros, ctx) {
+  const q = filtros.q.trim().toLowerCase();
+  return datos.filter((d) => {
+    if (q && !textoBusqueda(d).includes(q)) return false;
+    if (filtros.semana && !(d.semanas || []).includes(filtros.semana)) return false;
+    if (filtros.dia && !tieneDia(d, filtros.dia, ctx)) return false;
+    if (filtros.grupo && d.grupo !== filtros.grupo) return false;
+    if (filtros.pago && d.estadoPago !== filtros.pago) return false;
+    return true;
+  });
+}
+
+function primeraSemanaIndex(d, ctx) {
+  const semanas = ctx._semanas || [];
+  const indexes = (d.semanas || []).map((s) => semanas.indexOf(s)).filter((i) => i >= 0);
+  return indexes.length ? Math.min(...indexes) : 999;
+}
+
+function ordenarInscripciones(datos, orden, ctx) {
+  const collator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
+  const copia = [...datos];
+  return copia.sort((a, b) => {
+    if (orden === "nombre") return collator.compare(a.estudiante || "", b.estudiante || "");
+    if (orden === "grupo") return collator.compare(a.grupo || "", b.grupo || "") || collator.compare(a.estudiante || "", b.estudiante || "");
+    if (orden === "edad") return (Number(a.edad) || 99) - (Number(b.edad) || 99) || collator.compare(a.estudiante || "", b.estudiante || "");
+    if (orden === "pago") return collator.compare(a.estadoPago || "", b.estadoPago || "") || collator.compare(a.estudiante || "", b.estudiante || "");
+    if (orden === "fecha") return String(b.fechaInscripcion || "").localeCompare(String(a.fechaInscripcion || ""));
+    return primeraSemanaIndex(a, ctx) - primeraSemanaIndex(b, ctx) || collator.compare(a.estudiante || "", b.estudiante || "");
+  });
+}
+
+function resumenDias(d, ctx) {
+  const semanas = d.semanas || [];
+  if (!semanas.length) return el("span", { class: "muted" }, "Sin semanas");
+  return el("div", { class: "day-summary" }, semanas.map((semana) => {
+    const dias = diasDeInscrito(d, semana, ctx);
+    const todos = dias.length === (ctx._diasTemporada || []).length;
+    return el("div", { class: "day-line" },
+      el("strong", {}, semana),
+      el("span", {}, todos ? "Todos los dias" : dias.join(", ")),
+    );
+  }));
+}
+
+function accionesInscripcion(d, ctx, onSave) {
+  return el("div", { class: "row-actions" },
+    el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, onSave) }, "Editar"),
+    el("button", { class: "btn ghost small", onclick: () => del(ctx, d, onSave) }, "Eliminar"),
+  );
+}
+
+function vistaTabla(datos, ctx, onSave) {
+  const tabla = el("table", { class: "table insc-table" },
+    el("thead", {}, el("tr", {},
+      ...["Estudiante", "Edad", "Grupo", "Semana(s)", "Dias", "Horario", "Pago", "Ruta", "Direccion", ""].map((h) => el("th", {}, h)))));
+  const tb = el("tbody", {});
+  datos.forEach((d) => {
+    tb.append(el("tr", {},
+      el("td", {}, el("strong", {}, d.estudiante || "-"), d.acudiente ? el("div", { class: "muted small" }, d.acudiente) : null),
+      el("td", {}, d.edad ?? ""),
+      el("td", {}, d.grupo || ""),
+      el("td", {}, (d.semanas || []).join(", ")),
+      el("td", {}, resumenDias(d, ctx)),
+      el("td", {}, d.horario || ""),
+      el("td", {}, el("span", { class: "pill pago-" + (d.estadoPago || "").toLowerCase() }, d.estadoPago || "-")),
+      el("td", {}, d.ruta ? "Si" : ""),
+      el("td", {}, d.direccion || ""),
+      el("td", {}, accionesInscripcion(d, ctx, onSave)),
+    ));
+  });
+  tabla.append(tb);
+  return el("div", { class: "table-wrap" }, tabla);
+}
+
+function vistaTarjetas(datos, ctx, onSave) {
+  return el("div", { class: "insc-card-grid" }, datos.map((d) => el("article", { class: "insc-card" },
+    el("div", { class: "insc-card-head" },
+      el("div", {}, el("h3", {}, d.estudiante || "-"), el("div", { class: "muted small" }, [d.edad ? `${d.edad} anos` : "", d.grupo || ""].filter(Boolean).join(" · "))),
+      el("span", { class: "pill pago-" + (d.estadoPago || "").toLowerCase() }, d.estadoPago || "-"),
+    ),
+    resumenDias(d, ctx),
+    el("div", { class: "insc-card-meta" }, d.horario || "", d.ruta ? "Ruta: si" : "Sin ruta"),
+    d.acudiente || d.celular ? el("div", { class: "muted small" }, [d.acudiente, d.celular].filter(Boolean).join(" · ")) : null,
+    accionesInscripcion(d, ctx, onSave),
+  )));
+}
+
+function vistaSemanas(datos, ctx, onSave) {
+  const semanas = ctx._semanas || [];
+  return el("div", { class: "week-view" }, semanas.map((semana) => {
+    const inscritos = datos.filter((d) => (d.semanas || []).includes(semana));
+    return el("section", { class: "week-block" },
+      el("div", { class: "week-title" }, el("h3", {}, semana), el("span", { class: "pill" }, `${inscritos.length} ninos`)),
+      inscritos.length ? el("div", { class: "week-list" }, inscritos.map((d) => el("div", { class: "week-student" },
+        el("div", {}, el("strong", {}, d.estudiante || "-"), el("div", { class: "muted small" }, [d.edad ? `${d.edad} anos` : "", d.grupo || ""].filter(Boolean).join(" · "))),
+        el("div", { class: "week-days" }, diasDeInscrito(d, semana, ctx).map((dia) => el("span", { class: "day-chip" }, dia.slice(0, 3)))),
+        accionesInscripcion(d, ctx, onSave),
+      ))) : el("div", { class: "empty compact" }, "Sin inscritos"),
+    );
+  }));
 }
 
 function tarjeta(t, v, tono = "") {
@@ -121,6 +320,47 @@ function editar(ctx, dato, onSave) {
 
   const semWrap = el("div", { class: "chips-input" });
   (ctx._semanas || []).forEach((s) => { const c = el("input", { type: "checkbox", value: s }); if ((d.semanas || []).includes(s)) c.checked = true; semWrap.append(el("label", { class: "chk" }, c, s)); });
+  const diasWrap = el("div", { class: "week-days-editor" });
+  const diasTemporada = ctx._diasTemporada || [];
+  function semanasMarcadas() {
+    return [...semWrap.querySelectorAll("input:checked")].map((c) => c.value);
+  }
+  function diasGuardados(semana) {
+    const guardados = d.diasPorSemana && Array.isArray(d.diasPorSemana[semana]) ? d.diasPorSemana[semana] : diasTemporada;
+    return guardados.filter((dia) => diasTemporada.includes(dia));
+  }
+  function pintarDiasInscritos() {
+    const seleccionadas = semanasMarcadas();
+    diasWrap.innerHTML = "";
+    if (!seleccionadas.length) {
+      diasWrap.append(el("div", { class: "muted small" }, "Marca una semana para elegir los dias de asistencia."));
+      return;
+    }
+    seleccionadas.forEach((semana) => {
+      const seleccionInicial = new Set(diasGuardados(semana));
+      const checks = diasTemporada.map((dia) => {
+        const chk = el("input", { type: "checkbox", value: dia, "data-semana": semana });
+        chk.checked = seleccionInicial.has(dia);
+        return el("label", { class: "chk day-check" }, chk, dia);
+      });
+      const todos = el("button", { class: "btn ghost small", onclick: () => {
+        const cajas = [...diasWrap.querySelectorAll(`input[data-semana="${semana}"]`)];
+        const marcar = cajas.some((c) => !c.checked);
+        cajas.forEach((c) => { c.checked = marcar; });
+      } }, "Todos");
+      diasWrap.append(el("div", { class: "week-day-row" },
+        el("div", { class: "week-day-title" }, el("strong", {}, semana), todos),
+        el("div", { class: "chips-input" }, checks),
+      ));
+    });
+  }
+  function diasPorSemanaSeleccionados() {
+    const res = {};
+    semanasMarcadas().forEach((semana) => {
+      res[semana] = [...diasWrap.querySelectorAll(`input[data-semana="${semana}"]:checked`)].map((c) => c.value);
+    });
+    return res;
+  }
 
   const ruta = el("input", { type: "checkbox" }); if (d.ruta) ruta.checked = true;
 
@@ -180,6 +420,7 @@ function editar(ctx, dato, onSave) {
     descuentosWrap.querySelectorAll("input").forEach((chk) => { chk.checked = contactoDescuentos.has(chk.value); });
     // Marcar las semanas de interés del contacto.
     semWrap.querySelectorAll("input").forEach((chk) => { chk.checked = (c.semanas || []).includes(chk.value); });
+    pintarDiasInscritos();
     recalcularValor();
   }
   const etiquetaC = (c) => `${c.estudiante || "(sin nombre)"}${c.acudiente ? " · " + c.acudiente : ""}${c.celular ? " · " + c.celular : ""}`;
@@ -230,6 +471,7 @@ function editar(ctx, dato, onSave) {
     el("label", {}, "Acudiente", inp("acudiente")),
     el("label", {}, "Celular", inp("celular", { ph: "+57…" })),
     el("label", { class: "full" }, "Semanas inscritas", semWrap),
+    el("label", { class: "full" }, "Dias que viene", diasWrap),
     el("label", { class: "chk full" }, ruta, " Necesita ruta"),
     el("label", { class: "full" }, "Dirección / barrio para ruta", inp("direccion", { ph: "Dirección, barrio o punto de recogida" })),
     descuentosDisponibles.length ? el("label", { class: "full" }, "Descuentos aplicados", descuentosWrap) : null,
@@ -241,7 +483,7 @@ function editar(ctx, dato, onSave) {
   }
 
   function semanasSeleccionadas() {
-    return [...semWrap.querySelectorAll("input:checked")].map((c) => c.value);
+    return semanasMarcadas();
   }
 
   function calcularPrecioActual() {
@@ -264,8 +506,12 @@ function editar(ctx, dato, onSave) {
     return calc;
   }
 
-  semWrap.querySelectorAll("input").forEach((chk) => chk.addEventListener("change", recalcularValor));
+  semWrap.querySelectorAll("input").forEach((chk) => chk.addEventListener("change", () => {
+    pintarDiasInscritos();
+    recalcularValor();
+  }));
   descuentosWrap.querySelectorAll("input").forEach((chk) => chk.addEventListener("change", recalcularValor));
+  pintarDiasInscritos();
   recalcularValor();
 
   f.edad.addEventListener("change", () => {
@@ -303,6 +549,7 @@ function editar(ctx, dato, onSave) {
         horasContratadas: calc.horas,
         paqueteCalculado: calc.paquete,
         semanas: semanasSeleccionadas(),
+        diasPorSemana: diasPorSemanaSeleccionados(),
       };
       if (!payload.estudiante) { toast("Falta el nombre del estudiante", "error"); return; }
       const destino = selTemporada.value || ctx.temporadaId;
