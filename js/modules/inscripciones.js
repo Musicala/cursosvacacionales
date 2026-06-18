@@ -496,10 +496,10 @@ function editar(ctx, dato, onSave) {
     });
   }
 
-  function recalcularValor() {
+  function recalcularValor(actualizarCampos = true) {
     const calc = calcularPrecioActual();
-    if (calc.valorFinal || calc.valorBase) f.valor.value = calc.valorFinal;
-    f.paquete.value = calc.paquete && nombresPaquete.includes(calc.paquete) ? calc.paquete : f.paquete.value;
+    if (actualizarCampos && (calc.valorFinal || calc.valorBase)) f.valor.value = calc.valorFinal;
+    if (actualizarCampos) f.paquete.value = calc.paquete && nombresPaquete.includes(calc.paquete) ? calc.paquete : f.paquete.value;
     resumenPrecio.textContent = calc.horas
       ? `Base ${cop(calc.valorBase)} · ${calc.dias} día(s), ${calc.horas} hora(s) · Descuentos ${cop(calc.totalDescuento)} · Final ${cop(calc.valorFinal)}`
       : "Marca semanas para calcular el valor.";
@@ -512,7 +512,7 @@ function editar(ctx, dato, onSave) {
   }));
   descuentosWrap.querySelectorAll("input").forEach((chk) => chk.addEventListener("change", recalcularValor));
   pintarDiasInscritos();
-  recalcularValor();
+  recalcularValor(!dato);
 
   f.edad.addEventListener("change", () => {
     const g = (GRUPOS.find((x) => x.id === grupoPorEdad(f.edad.value)) || {}).nombre;
