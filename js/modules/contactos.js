@@ -1,9 +1,9 @@
 // Módulo Contactos: interesados, antiguos (re-contacto), seguimiento.
-import { el, esc, toast, modal, confirmar, fmtCorta } from "../ui.js?v=2";
-import { listar, crear, actualizar, eliminar } from "../db.js?v=2";
-import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, semanasDetalle } from "../catalogos.js?v=2";
-import { estaConfigurada, onAuthBG, loginBG, usuarioBG, traerVacacionales } from "../base-general.js?v=2";
-import { buscarDuplicado } from "../dedup.js?v=2";
+import { el, esc, toast, modal, confirmar, fmtCorta } from "../ui.js?v=3";
+import { listar, crear, actualizar, eliminar } from "../db.js?v=3";
+import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, semanasDetalle } from "../catalogos.js?v=3";
+import { estaConfigurada, onAuthBG, loginBG, usuarioBG, traerVacacionales } from "../base-general.js?v=3";
+import { buscarDuplicado } from "../dedup.js?v=3";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },

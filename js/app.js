@@ -1,20 +1,20 @@
-import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./firebase.js?v=2";
-import { $, el, toast, fmtCorta } from "./ui.js?v=2";
-import { listarTemporadas, crearTemporada } from "./db.js?v=2";
+import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./firebase.js?v=3";
+import { $, el, toast, fmtCorta } from "./ui.js?v=3";
+import { listarTemporadas, crearTemporada } from "./db.js?v=3";
 
-import dashboard from "./modules/dashboard.js?v=2";
-import estadisticas from "./modules/estadisticas.js?v=2";
-import contactos from "./modules/contactos.js?v=2";
-import inscripciones from "./modules/inscripciones.js?v=2";
-import horarios from "./modules/horarios.js?v=2";
-import asistencia from "./modules/asistencia.js?v=2";
-import musicafe from "./modules/musicafe.js?v=2";
-import ruta from "./modules/ruta.js?v=2";
-import materiales from "./modules/materiales.js?v=2";
-import musipuntos from "./modules/musipuntos.js?v=2";
-import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=2";
-import { conectarConCredencial } from "./base-general.js?v=2";
-import { leerConfig } from "./db.js?v=2";
+import dashboard from "./modules/dashboard.js?v=3";
+import estadisticas from "./modules/estadisticas.js?v=3";
+import contactos from "./modules/contactos.js?v=3";
+import inscripciones from "./modules/inscripciones.js?v=3";
+import horarios from "./modules/horarios.js?v=3";
+import asistencia from "./modules/asistencia.js?v=3";
+import musicafe from "./modules/musicafe.js?v=3";
+import ruta from "./modules/ruta.js?v=3";
+import materiales from "./modules/materiales.js?v=3";
+import musipuntos from "./modules/musipuntos.js?v=3";
+import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=3";
+import { conectarConCredencial } from "./base-general.js?v=3";
+import { leerConfig } from "./db.js?v=3";
 
 const MODULOS = [
   { id: "dashboard",     nombre: "Tablero",        icono: "📊", render: dashboard },
@@ -167,7 +167,7 @@ function construirShell() {
     ),
     ...modulosVisibles().map((m) => el("a", {
       class: "side-link", "data-mod": m.id,
-      onclick: () => navegar(m.id),
+      onclick: () => { navegar(m.id); cerrarMenu(); },
     }, el("span", { class: "ico" }, m.icono), el("span", {}, m.nombre))),
   );
 
@@ -183,9 +183,15 @@ function construirShell() {
     selTemp.append(o);
   });
 
+  const menuBtn = el("button", {
+    class: "menu-btn", "aria-label": "Abrir menú",
+    onclick: () => document.body.classList.toggle("nav-abierto"),
+  }, "☰");
+
   const topbar = el("header", { class: "topbar" },
+    menuBtn,
     el("div", { class: "top-left" },
-      el("span", { class: "muted small" }, "Temporada:"), selTemp,
+      el("span", { class: "muted small top-temp-lbl" }, "Temporada:"), selTemp,
       estado.rol === "admin"
         ? el("button", { class: "btn ghost small", title: "Nueva temporada", onclick: nuevaTemporada }, "+ Temporada")
         : null,
@@ -194,14 +200,20 @@ function construirShell() {
       estado.rol === "docente"
         ? el("span", { class: "pill" }, "Docente · " + (estado.docente?.nombre || ""))
         : null,
-      el("span", { class: "muted small" }, estado.usuario.email),
+      el("span", { class: "muted small top-email" }, estado.usuario.email),
       el("button", { class: "btn ghost small", onclick: () => logout() }, "Salir"),
     ),
   );
 
+  const overlay = el("div", { class: "nav-overlay", onclick: cerrarMenu });
   const main = el("main", { class: "content", id: "content" });
-  const layout = el("div", { class: "layout" }, nav, el("div", { class: "main-col" }, topbar, main));
+  const layout = el("div", { class: "layout" }, nav, overlay, el("div", { class: "main-col" }, topbar, main));
   document.body.append(layout);
+}
+
+// Cierra el menú lateral en móvil (no afecta escritorio).
+function cerrarMenu() {
+  document.body.classList.remove("nav-abierto");
 }
 
 function nuevaTemporada() {

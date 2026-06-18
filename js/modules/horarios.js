@@ -1,7 +1,7 @@
 // Módulo Horarios y docentes: asignación de clases por semana/día con docente, taller y salón.
-import { el, toast, modal, confirmar } from "../ui.js?v=2";
-import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=2";
-import { GRUPOS, AREAS, DOCENTES, semanasDe, diasDe } from "../catalogos.js?v=2";
+import { el, toast, modal, confirmar } from "../ui.js?v=3";
+import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
+import { GRUPOS, AREAS, DOCENTES, semanasDe, diasDe } from "../catalogos.js?v=3";
 
 let DOCS = DOCENTES;
 

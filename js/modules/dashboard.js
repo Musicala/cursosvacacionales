@@ -1,7 +1,7 @@
 // Módulo Tablero: resumen de la temporada.
-import { el, cop } from "../ui.js?v=2";
-import { listar } from "../db.js?v=2";
-import { ESTADOS_CONTACTO, RUTA_MINIMO, semanasDetalle } from "../catalogos.js?v=2";
+import { el, cop } from "../ui.js?v=3";
+import { listar } from "../db.js?v=3";
+import { ESTADOS_CONTACTO, RUTA_MINIMO, semanasDetalle } from "../catalogos.js?v=3";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
