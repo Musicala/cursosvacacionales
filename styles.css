@@ -178,6 +178,10 @@ label.check input,.checks .check input{width:auto}
 .stat-val{font-size:1.6rem;font-weight:800}
 .stat-lbl{color:var(--muted);font-size:.85rem;font-weight:600}
 .stat.ok{border-left:4px solid var(--ok)} .stat.warn{border-left:4px solid var(--warn)}
+.week-status{display:flex;align-items:center;gap:1rem}
+.week-status.ok{border-left:5px solid var(--ok)}
+.week-status.warn{border-left:5px solid var(--warn)}
+.week-status-icon{font-size:2.2rem}
 .ruta-status{display:flex;align-items:center;gap:1rem}
 .ruta-status.ok{border-left:5px solid var(--ok)} .ruta-status.warn{border-left:5px solid var(--warn)}
 .ruta-big{font-size:2.6rem}

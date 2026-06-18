@@ -1,7 +1,7 @@
 // Módulo Tablero: resumen de la temporada.
 import { el, cop } from "../ui.js";
 import { listar } from "../db.js";
-import { ESTADOS_CONTACTO, RUTA_MINIMO } from "../catalogos.js";
+import { ESTADOS_CONTACTO, RUTA_MINIMO, semanasDetalle } from "../catalogos.js";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
@@ -27,6 +27,7 @@ export default async function render(root, ctx) {
   const musicafeTotal = musicafe.reduce((s, d) => s + (Number(d.total) || 0), 0);
 
   cont.innerHTML = "";
+  cont.append(tarjetaSemanaActual(ctx.temporada));
   cont.append(el("div", { class: "cards-row" },
     stat("Interesados", interesados),
     stat("Clientes antiguos", antiguos),
@@ -78,4 +79,65 @@ export default async function render(root, ctx) {
 
 function stat(lbl, val, tono = "") {
   return el("div", { class: "stat " + tono }, el("div", { class: "stat-val" }, String(val)), el("div", { class: "stat-lbl" }, lbl));
+}
+
+function fechaLocal(iso) {
+  if (!iso) return null;
+  const [y, m, d] = String(iso).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function inicioDia(fecha) {
+  return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+}
+
+function fmtRangoSemana(semana) {
+  const desde = fechaLocal(semana.desde);
+  const hasta = fechaLocal(semana.hasta);
+  const fmt = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short" });
+  if (desde && hasta) return `${fmt.format(desde)} - ${fmt.format(hasta)}`;
+  if (desde) return `Desde ${fmt.format(desde)}`;
+  if (hasta) return `Hasta ${fmt.format(hasta)}`;
+  return "";
+}
+
+function semanaActual(temporada) {
+  const semanas = semanasDetalle(temporada).filter((s) => s.desde || s.hasta);
+  const hoy = inicioDia(new Date());
+  const actual = semanas.find((s) => {
+    const desde = fechaLocal(s.desde);
+    const hasta = fechaLocal(s.hasta);
+    return (!desde || hoy >= desde) && (!hasta || hoy <= hasta);
+  });
+  if (actual) return { estado: "actual", semana: actual };
+  const siguiente = semanas.find((s) => {
+    const desde = fechaLocal(s.desde);
+    return desde && hoy < desde;
+  });
+  if (siguiente) return { estado: "proxima", semana: siguiente };
+  const ultima = semanas[semanas.length - 1];
+  return ultima ? { estado: "terminada", semana: ultima } : { estado: "sin-fechas", semana: null };
+}
+
+function tarjetaSemanaActual(temporada) {
+  const info = semanaActual(temporada);
+  if (info.estado === "sin-fechas") {
+    return el("div", { class: "panel week-status warn" },
+      el("div", { class: "week-status-icon" }, "📅"),
+      el("div", {},
+        el("div", { class: "stat-val" }, "Sin fechas de semanas"),
+        el("div", { class: "stat-lbl" }, "Configura las fechas en Info temporada")));
+  }
+  const texto = info.estado === "actual"
+    ? "Estamos en esta semana"
+    : info.estado === "proxima"
+      ? "La temporada aún no llega a esta semana"
+      : "La temporada ya terminó";
+  const clase = info.estado === "actual" ? "ok" : "warn";
+  return el("div", { class: "panel week-status " + clase },
+    el("div", { class: "week-status-icon" }, "📅"),
+    el("div", {},
+      el("div", { class: "stat-val" }, info.semana.nombre),
+      el("div", { class: "stat-lbl" }, `${texto}${fmtRangoSemana(info.semana) ? " · " + fmtRangoSemana(info.semana) : ""}`)));
 }
