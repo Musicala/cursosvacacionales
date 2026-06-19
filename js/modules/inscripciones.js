@@ -232,7 +232,7 @@ function accionesInscripcion(d, ctx, onSave) {
 function vistaTabla(datos, ctx, onSave) {
   const tabla = el("table", { class: "table insc-table" },
     el("thead", {}, el("tr", {},
-      ...["Estudiante", "Edad", "Grupo", "Semana(s)", "Dias", "Horario", "Pago", "Ruta", "Direccion", ""].map((h) => el("th", {}, h)))));
+      ...["Estudiante", "Edad", "Grupo", "Semana(s)", "Dias", "Horario", "Pago", "Ruta", "Direccion", "Observaciones", ""].map((h) => el("th", {}, h)))));
   const tb = el("tbody", {});
   datos.forEach((d) => {
     tb.append(el("tr", {},
@@ -245,6 +245,7 @@ function vistaTabla(datos, ctx, onSave) {
       el("td", {}, el("span", { class: "pill pago-" + (d.estadoPago || "").toLowerCase() }, d.estadoPago || "-")),
       el("td", {}, d.ruta ? "Si" : ""),
       el("td", {}, d.direccion || ""),
+      el("td", {}, textoObservaciones(d, ctx) ? el("div", { class: "insc-note" }, textoObservaciones(d, ctx)) : ""),
       el("td", {}, accionesInscripcion(d, ctx, onSave)),
     ));
   });
@@ -261,8 +262,26 @@ function vistaTarjetas(datos, ctx, onSave) {
     resumenDias(d, ctx),
     el("div", { class: "insc-card-meta" }, d.horario || "", d.ruta ? "Ruta: si" : "Sin ruta"),
     d.acudiente || d.celular ? el("div", { class: "muted small" }, [d.acudiente, d.celular].filter(Boolean).join(" · ")) : null,
+    textoObservaciones(d, ctx) ? el("div", { class: "insc-note card-note" }, textoObservaciones(d, ctx)) : null,
     accionesInscripcion(d, ctx, onSave),
   )));
+}
+
+function textoObservaciones(d, ctx) {
+  const propia = (d.observaciones || "").trim();
+  if (propia) return propia;
+  const contactos = ctx._contactos || [];
+  const estudiante = normalizarTexto(d.estudiante);
+  const celular = normalizarTexto(d.celular);
+  const contacto = contactos.find((c) =>
+    (celular && normalizarTexto(c.celular) === celular) ||
+    (estudiante && normalizarTexto(c.estudiante) === estudiante)
+  );
+  return (contacto?.observaciones || "").trim();
+}
+
+function normalizarTexto(v) {
+  return String(v || "").trim().toLowerCase();
 }
 
 function vistaSemanas(datos, ctx, onSave) {
@@ -415,6 +434,7 @@ function editar(ctx, dato, onSave) {
     f.acudiente.value = c.acudiente || "";
     f.celular.value = c.celular || "";
     f.direccion.value = c.direccion || "";
+    f.observaciones.value = c.observaciones || "";
     if (c.ruta) ruta.checked = true;
     const contactoDescuentos = new Set(Array.isArray(c.descuentoIds) ? c.descuentoIds : []);
     descuentosWrap.querySelectorAll("input").forEach((chk) => { chk.checked = contactoDescuentos.has(chk.value); });
