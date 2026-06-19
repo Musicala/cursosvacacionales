@@ -1,20 +1,20 @@
-import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./firebase.js?v=3";
-import { $, el, toast, fmtCorta } from "./ui.js?v=3";
-import { listarTemporadas, crearTemporada } from "./db.js?v=3";
+import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./firebase.js?v=4";
+import { $, el, toast, fmtCorta } from "./ui.js?v=4";
+import { listarTemporadas, crearTemporada } from "./db.js?v=4";
 
-import dashboard from "./modules/dashboard.js?v=3";
-import estadisticas from "./modules/estadisticas.js?v=3";
-import contactos from "./modules/contactos.js?v=3";
-import inscripciones from "./modules/inscripciones.js?v=3";
-import horarios from "./modules/horarios.js?v=3";
-import asistencia from "./modules/asistencia.js?v=3";
-import musicafe from "./modules/musicafe.js?v=3";
-import ruta from "./modules/ruta.js?v=3";
-import materiales from "./modules/materiales.js?v=3";
-import musipuntos from "./modules/musipuntos.js?v=3";
-import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=3";
-import { conectarConCredencial } from "./base-general.js?v=3";
-import { leerConfig } from "./db.js?v=3";
+import dashboard from "./modules/dashboard.js?v=4";
+import estadisticas from "./modules/estadisticas.js?v=4";
+import contactos from "./modules/contactos.js?v=4";
+import inscripciones from "./modules/inscripciones.js?v=4";
+import horarios from "./modules/horarios.js?v=4";
+import asistencia from "./modules/asistencia.js?v=4";
+import musicafe from "./modules/musicafe.js?v=4";
+import ruta from "./modules/ruta.js?v=4";
+import materiales from "./modules/materiales.js?v=4";
+import musipuntos from "./modules/musipuntos.js?v=4";
+import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=4";
+import { conectarConCredencial } from "./base-general.js?v=4";
+import { leerConfig } from "./db.js?v=4";
 
 const MODULOS = [
   { id: "dashboard",     nombre: "Tablero",        icono: "📊", render: dashboard },
