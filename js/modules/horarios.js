@@ -1,7 +1,7 @@
 // Módulo Horarios y docentes: asignación de clases por semana/día con docente, taller y salón.
 import { el, toast, modal, confirmar } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
-import { GRUPOS, AREAS, DOCENTES, semanasDe, diasDe } from "../catalogos.js?v=3";
+import { GRUPOS, AREAS, DOCENTES, semanasDe, diasDe, formatoRangoSemana, semanaActualInfo } from "../catalogos.js?v=4";
 
 let DOCS = DOCENTES;
 
@@ -17,6 +17,7 @@ export default async function render(root, ctx) {
   // Semanas y días configurados para esta temporada (ver "Info temporada").
   const SEMANAS = semanasDe(ctx.temporada);
   const DIAS = diasDe(ctx.temporada);
+  const semanaInfo = semanaActualInfo(ctx.temporada);
 
   root.append(el("div", { class: "panel-head" },
     el("h2", {}, soloLectura ? "🗓️ Mi horario" : "🗓️ Horarios y docentes"),
@@ -30,6 +31,7 @@ export default async function render(root, ctx) {
   let vista = "horario"; // "horario" | "lista"
 
   const fSemana = el("select", {}, ...["", ...SEMANAS].map((s) => el("option", { value: s }, s || "Todas las semanas")));
+  if (soloLectura && semanaInfo.estado === "actual" && semanaInfo.semana?.nombre) fSemana.value = semanaInfo.semana.nombre;
   const btnHorario = el("button", { class: "btn small", onclick: () => setVista("horario") }, "🗓️ Horario");
   const btnLista = el("button", { class: "btn small", onclick: () => setVista("lista") }, "☰ Lista");
   function setVista(v) { vista = v; btnHorario.className = "btn small" + (v === "horario" ? " primary" : ""); btnLista.className = "btn small" + (v === "lista" ? " primary" : ""); pintar(); }
@@ -37,6 +39,7 @@ export default async function render(root, ctx) {
     el("label", {}, "Semana", fSemana),
     el("div", { class: "btn-group" }, btnHorario, btnLista),
   )));
+  root.append(tarjetaSemanaVacacional(semanaInfo, soloLectura));
 
   const cont = el("div", { class: "panel" });
   root.append(cont);
@@ -215,6 +218,27 @@ function rangoHoras(d) {
   const a = d.horaInicio || "", b = d.horaFin || "";
   if (!a && !b) return "";
   return [a, b].filter(Boolean).join("–");
+}
+
+function tarjetaSemanaVacacional(info, soloLectura) {
+  if (info.estado === "sin-fechas") {
+    return el("div", { class: "panel week-status warn" },
+      el("div", { class: "week-status-icon" }, "📅"),
+      el("div", {},
+        el("div", { class: "stat-val" }, "Semana del Vacacional"),
+        el("div", { class: "stat-lbl" }, "Aún no hay fechas configuradas para las semanas.")));
+  }
+  const rango = formatoRangoSemana(info.semana);
+  const texto = info.estado === "actual"
+    ? (soloLectura ? "Esta es la semana que debes revisar hoy" : "Estamos en esta semana")
+    : info.estado === "proxima"
+      ? "La temporada aún no llega a esta semana"
+      : "La temporada ya terminó";
+  return el("div", { class: "panel week-status " + (info.estado === "actual" ? "ok" : "warn") },
+    el("div", { class: "week-status-icon" }, "📅"),
+    el("div", {},
+      el("div", { class: "stat-val" }, info.semana.nombre),
+      el("div", { class: "stat-lbl" }, `${texto}${rango ? " · " + rango : ""}`)));
 }
 
 function correoDocente(nombre) {

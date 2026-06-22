@@ -112,6 +112,45 @@ export function semanasDetalle(temporada) {
 }
 
 // Horarios de clase. El estándar es 9 a 1 p.m.; "Vacacionales Intensivos" permite uno personalizado.
+function fechaLocal(iso) {
+  if (!iso) return null;
+  const [y, m, d] = String(iso).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function inicioDia(fecha) {
+  return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+}
+
+export function formatoRangoSemana(semana) {
+  const desde = fechaLocal(semana && semana.desde);
+  const hasta = fechaLocal(semana && semana.hasta);
+  const fmt = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short" });
+  if (desde && hasta) return `${fmt.format(desde)} - ${fmt.format(hasta)}`;
+  if (desde) return `Desde ${fmt.format(desde)}`;
+  if (hasta) return `Hasta ${fmt.format(hasta)}`;
+  return "";
+}
+
+export function semanaActualInfo(temporada, fecha = new Date()) {
+  const semanas = semanasDetalle(temporada).filter((s) => s.desde || s.hasta);
+  const hoy = inicioDia(fecha);
+  const actual = semanas.find((s) => {
+    const desde = fechaLocal(s.desde);
+    const hasta = fechaLocal(s.hasta);
+    return (!desde || hoy >= desde) && (!hasta || hoy <= hasta);
+  });
+  if (actual) return { estado: "actual", semana: actual };
+  const siguiente = semanas.find((s) => {
+    const desde = fechaLocal(s.desde);
+    return desde && hoy < desde;
+  });
+  if (siguiente) return { estado: "proxima", semana: siguiente };
+  const ultima = semanas[semanas.length - 1];
+  return ultima ? { estado: "terminada", semana: ultima } : { estado: "sin-fechas", semana: null };
+}
+
 export const HORARIO_ESTANDAR = "9:00 a.m. a 1:00 p.m.";
 export const HORARIO_INTENSIVO = "Vacacionales Intensivos";
 export const HORARIOS_OPCIONES = [HORARIO_ESTANDAR, HORARIO_INTENSIVO];

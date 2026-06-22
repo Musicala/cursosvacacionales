@@ -1,7 +1,7 @@
 // Módulo Tablero: resumen de la temporada.
 import { el, cop } from "../ui.js?v=3";
 import { listar } from "../db.js?v=3";
-import { ESTADOS_CONTACTO, RUTA_MINIMO, semanasDetalle } from "../catalogos.js?v=3";
+import { ESTADOS_CONTACTO, RUTA_MINIMO, semanasDetalle, semanaActualInfo } from "../catalogos.js?v=4";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
@@ -121,7 +121,7 @@ function semanaActual(temporada) {
 }
 
 function tarjetaSemanaActual(temporada) {
-  const info = semanaActual(temporada);
+  const info = semanaActualInfo(temporada);
   if (info.estado === "sin-fechas") {
     return el("div", { class: "panel week-status warn" },
       el("div", { class: "week-status-icon" }, "📅"),
