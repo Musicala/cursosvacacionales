@@ -28,16 +28,23 @@ export default async function render(root, ctx) {
     ),
   ));
 
-  let vista = "horario"; // "horario" | "lista"
+  let vista = "horario"; // "horario" | "lista" | "acudientes"
 
   const fSemana = el("select", {}, ...["", ...SEMANAS].map((s) => el("option", { value: s }, s || "Todas las semanas")));
   if (soloLectura && semanaInfo.estado === "actual" && semanaInfo.semana?.nombre) fSemana.value = semanaInfo.semana.nombre;
   const btnHorario = el("button", { class: "btn small", onclick: () => setVista("horario") }, "🗓️ Horario");
   const btnLista = el("button", { class: "btn small", onclick: () => setVista("lista") }, "☰ Lista");
-  function setVista(v) { vista = v; btnHorario.className = "btn small" + (v === "horario" ? " primary" : ""); btnLista.className = "btn small" + (v === "lista" ? " primary" : ""); pintar(); }
+  const btnAcudientes = el("button", { class: "btn small", onclick: () => setVista("acudientes") }, "Para acudientes");
+  function setVista(v) {
+    vista = v;
+    btnHorario.className = "btn small" + (v === "horario" ? " primary" : "");
+    btnLista.className = "btn small" + (v === "lista" ? " primary" : "");
+    btnAcudientes.className = "btn small" + (v === "acudientes" ? " primary" : "");
+    pintar();
+  }
   root.append(el("div", { class: "panel" }, el("div", { class: "filters" },
     el("label", {}, "Semana", fSemana),
-    el("div", { class: "btn-group" }, btnHorario, btnLista),
+    el("div", { class: "btn-group" }, btnHorario, btnLista, btnAcudientes),
   )));
   root.append(tarjetaSemanaVacacional(semanaInfo, soloLectura));
 
@@ -57,6 +64,7 @@ export default async function render(root, ctx) {
     cont.innerHTML = "";
     if (!filas.length) { cont.append(el("div", { class: "empty" }, soloLectura ? "No tienes clases asignadas en esta temporada." : "Sin clases asignadas. Usa “+ Asignar clase”.")); return; }
     if (vista === "horario") pintarHorario(filas, sem);
+    else if (vista === "acudientes") pintarVistaAcudientes(filas);
     else pintarListaPlaneacionLimpia(filas);
   }
 
@@ -129,6 +137,29 @@ export default async function render(root, ctx) {
       el("thead", {}, el("tr", {}, ...cols.map((h) => el("th", {}, h)))), tb)));
   }
 
+  function pintarVistaAcudientes(filas) {
+    const ordenadas = [...filas].sort((a, b) => (
+      (a.semana + a.dia + (a.horaInicio || "") + a.grupo).localeCompare(b.semana + b.dia + (b.horaInicio || "") + b.grupo)
+    ));
+    const tituloSemana = fSemana.value || "Todas las semanas";
+    const resumen = textoAcudientes(ordenadas, tituloSemana);
+    cont.append(el("div", { class: "guardian-toolbar" },
+      el("div", {},
+        el("h3", {}, "Planeación para compartir"),
+        el("p", { class: "muted small" }, "Resumen limpio por día, listo para enviar a acudientes o imprimir.")),
+      el("div", { class: "row-actions guardian-actions" },
+        el("button", { class: "btn ghost small", onclick: () => copiarPlaneacion(resumen) }, "Copiar texto"),
+        el("button", { class: "btn primary small", onclick: () => imprimirPlaneacion(ordenadas, tituloSemana) }, "Imprimir / PDF"))));
+
+    Object.entries(agruparPor(ordenadas, (d) => d.dia || "Sin día")).forEach(([dia, clases]) => {
+      cont.append(el("section", { class: "guardian-day" },
+        el("div", { class: "guardian-day-head" },
+          el("h4", {}, dia),
+          el("span", { class: "pill" }, `${clases.length} clase${clases.length === 1 ? "" : "s"}`)),
+        el("div", { class: "guardian-grid" }, ...clases.map(tarjetaAcudiente))));
+    });
+  }
+
   // Vista tipo horario escolar: filas = grupos, columnas = días (Lun-Vie).
   function pintarHorario(filas, sem) {
     // Si no hay semana fija, una rejilla por cada semana con datos.
@@ -153,6 +184,7 @@ export default async function render(root, ctx) {
             d.taller ? el("div", { class: "h-taller" }, d.taller) : null,
             el("div", { class: "h-doc" }, d.docente || "—"),
             d.salon ? el("div", { class: "h-salon" }, "📍 " + d.salon) : null,
+            estadoPlaneacion(d, true),
           )));
         }),
       )));
@@ -218,6 +250,87 @@ function rangoHoras(d) {
   const a = d.horaInicio || "", b = d.horaFin || "";
   if (!a && !b) return "";
   return [a, b].filter(Boolean).join("–");
+}
+
+function agruparPor(lista, fn) {
+  return lista.reduce((acc, item) => {
+    const key = fn(item);
+    (acc[key] ||= []).push(item);
+    return acc;
+  }, {});
+}
+
+function valorPlano(v, fallback = "Por definir") {
+  return (v || "").trim() || fallback;
+}
+
+function tarjetaAcudiente(d) {
+  return el("article", { class: "guardian-card" },
+    el("div", { class: "guardian-card-head" },
+      el("div", {},
+        el("strong", {}, d.taller || d.area || "Clase"),
+        el("div", { class: "muted small" }, [d.grupo, rangoHoras(d)].filter(Boolean).join(" · "))),
+      estadoPlaneacion(d)),
+    el("dl", { class: "guardian-details" },
+      el("div", {}, el("dt", {}, "Objetivo"), el("dd", {}, valorPlano(d.planeacion))),
+      el("div", {}, el("dt", {}, "Actividades"), el("dd", {}, valorPlano(d.actividades))),
+      el("div", {}, el("dt", {}, "Recursos"), el("dd", {}, valorPlano(d.recursos))),
+      d.docente ? el("div", {}, el("dt", {}, "Docente"), el("dd", {}, d.docente)) : null,
+      d.salon ? el("div", {}, el("dt", {}, "Salón"), el("dd", {}, d.salon)) : null));
+}
+
+function textoAcudientes(filas, tituloSemana) {
+  const partes = [`Planeación Musicala - ${tituloSemana}`];
+  Object.entries(agruparPor(filas, (d) => d.dia || "Sin día")).forEach(([dia, clases]) => {
+    partes.push("", dia);
+    clases.forEach((d) => {
+      partes.push(`- ${[rangoHoras(d), d.grupo, d.taller || d.area].filter(Boolean).join(" | ")}`);
+      if ((d.planeacion || "").trim()) partes.push(`  Objetivo: ${d.planeacion.trim()}`);
+      if ((d.actividades || "").trim()) partes.push(`  Actividades: ${d.actividades.trim()}`);
+      if ((d.recursos || "").trim()) partes.push(`  Recursos: ${d.recursos.trim()}`);
+    });
+  });
+  return partes.join("\n");
+}
+
+async function copiarPlaneacion(texto) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast("Planeación copiada para compartir");
+  } catch (e) {
+    toast("No se pudo copiar automáticamente", "error");
+  }
+}
+
+function imprimirPlaneacion(filas, tituloSemana) {
+  const win = window.open("", "_blank");
+  if (!win) { toast("El navegador bloqueó la ventana de impresión", "error"); return; }
+  const html = filas.map((d) => `
+    <article class="card">
+      <div class="top">
+        <strong>${escapeHtml(d.taller || d.area || "Clase")}</strong>
+        <span>${escapeHtml([d.dia, rangoHoras(d), d.grupo].filter(Boolean).join(" · "))}</span>
+      </div>
+      <p><b>Objetivo:</b> ${escapeHtml(valorPlano(d.planeacion))}</p>
+      <p><b>Actividades:</b> ${escapeHtml(valorPlano(d.actividades))}</p>
+      <p><b>Recursos:</b> ${escapeHtml(valorPlano(d.recursos))}</p>
+      <p class="meta">${escapeHtml([d.docente, d.salon].filter(Boolean).join(" · "))}</p>
+    </article>`).join("");
+  win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Planeación Musicala</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:32px;color:#1f2330}
+      h1{margin:0 0 4px;color:#6d28d9}.sub{color:#6b7280;margin:0 0 20px}
+      .card{break-inside:avoid;border:1px solid #e7e3f3;border-radius:10px;padding:14px 16px;margin:0 0 12px}
+      .top{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #f1eefb;padding-bottom:8px;margin-bottom:8px}
+      .top span,.meta{color:#6b7280;font-size:13px}p{margin:7px 0;line-height:1.45;white-space:pre-wrap}
+    </style></head><body><h1>Planeación Musicala</h1><p class="sub">${escapeHtml(tituloSemana)}</p>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m]));
 }
 
 function tarjetaSemanaVacacional(info, soloLectura) {

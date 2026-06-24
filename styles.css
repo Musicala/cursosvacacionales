@@ -163,6 +163,24 @@ label.check input,.checks .check input{width:auto}
 .planning-form textarea{width:100%;resize:vertical;min-height:90px}
 .planning-class-summary{display:flex;flex-direction:column;gap:.15rem;background:#faf8ff;border:1px solid var(--line);
   border-radius:10px;padding:.7rem .8rem}
+.guardian-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem;
+  padding:.9rem 1rem;border:1px solid #d8cdf9;border-radius:10px;background:#faf8ff}
+.guardian-toolbar h3{font-size:1.05rem;margin:0 0 .15rem}
+.guardian-actions{flex-wrap:wrap;justify-content:flex-end}
+.guardian-day{margin-top:1rem}
+.guardian-day:first-of-type{margin-top:0}
+.guardian-day-head{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:.55rem;
+  padding-bottom:.35rem;border-bottom:1px solid var(--line)}
+.guardian-day-head h4{margin:0;color:var(--pri)}
+.guardian-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.75rem}
+.guardian-card{border:1px solid var(--line);border-radius:10px;background:#fff;padding:.85rem .95rem;
+  display:flex;flex-direction:column;gap:.7rem;box-shadow:0 1px 2px rgba(16,12,40,.04)}
+.guardian-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem}
+.guardian-card-head strong{display:block;font-size:1rem;color:var(--ink)}
+.guardian-details{display:flex;flex-direction:column;gap:.55rem;margin:0}
+.guardian-details div{padding-left:.65rem;border-left:3px solid #e9e0fc}
+.guardian-details dt{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--muted)}
+.guardian-details dd{margin:.12rem 0 0;color:#334155;font-size:.88rem;line-height:1.4;white-space:pre-wrap}
 
 /* ---- Buscador de contactos (combobox) ---- */
 .combo{position:relative}
@@ -279,6 +297,8 @@ label.check input,.checks .check input{width:auto}
   /* Horario: más compacto y desplazable */
   .table.horario{font-size:.8rem}
   .table.horario th,.table.horario td{padding:.25rem}
+  .guardian-toolbar{flex-direction:column}
+  .guardian-actions{justify-content:flex-start}
   /* Stats en dos columnas legibles */
   .cards-row{grid-template-columns:1fr 1fr;gap:.6rem}
   .stat-val{font-size:1.3rem}
