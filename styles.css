@@ -303,3 +303,9 @@ label.check input,.checks .check input{width:auto}
   .cards-row{grid-template-columns:1fr 1fr;gap:.6rem}
   .stat-val{font-size:1.3rem}
 }
+
+/* Musicafé: estado de pago de cuentas */
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.78rem;font-weight:600;line-height:1.4}
+.badge.ok{background:#d8f5e0;color:#177245}
+.badge.pend{background:#fdeccd;color:#9a6700}
+tr.saldada td{opacity:.6}

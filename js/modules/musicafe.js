@@ -1,6 +1,6 @@
 // Módulo Musicafé (onces): registro de consumo diario por estudiante y cuenta acumulada.
 import { el, cop, toast, modal, confirmar, hoyISO } from "../ui.js?v=3";
-import { listar, crear, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
+import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
 import { MUSICAFE_PRODUCTOS, MUSICAFE_CATEGORIAS } from "../catalogos.js?v=3";
 
 let PRECIOS = MUSICAFE_PRODUCTOS;
@@ -57,10 +57,13 @@ export default async function render(root, ctx) {
         el("td", {}, d.estudiante),
         el("td", {}, (d.productos || []).map((p) => p.nombre).join(", ")),
         el("td", {}, cop(d.total)),
+        el("td", {}, d.pagado
+          ? el("span", { class: "badge ok" }, "Pagado")
+          : el("span", { class: "badge pend" }, "Pendiente")),
         el("td", { class: "row-actions" }, el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "🗑")),
       )));
       diaCont.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
-        el("thead", {}, el("tr", {}, ...["Estudiante", "Productos", "Total", ""].map((h) => el("th", {}, h)))), tb)));
+        el("thead", {}, el("tr", {}, ...["Estudiante", "Productos", "Total", "Estado", ""].map((h) => el("th", {}, h)))), tb)));
     }
     // ---- Cuenta acumulada por estudiante (toda la temporada) ----
     semCont.innerHTML = "";
@@ -68,25 +71,40 @@ export default async function render(root, ctx) {
     const porEst = {};
     datos.forEach((d) => {
       const k = (d.estudiante || "—").trim();
-      porEst[k] = porEst[k] || { total: 0, dias: new Set() };
-      porEst[k].total += Number(d.total) || 0;
+      porEst[k] = porEst[k] || { total: 0, pendiente: 0, dias: new Set(), regs: [] };
+      const monto = Number(d.total) || 0;
+      porEst[k].total += monto;
+      if (!d.pagado) porEst[k].pendiente += monto;
       porEst[k].dias.add(d.fecha);
+      porEst[k].regs.push(d);
     });
     const nombres = Object.keys(porEst).sort();
     if (!nombres.length) { semCont.append(el("div", { class: "empty" }, "Sin consumos aún.")); return; }
     const tb = el("tbody", {});
-    let granTotal = 0;
+    let granTotal = 0, granPend = 0;
     nombres.forEach((n) => {
-      granTotal += porEst[n].total;
-      tb.append(el("tr", {},
+      const e = porEst[n];
+      granTotal += e.total; granPend += e.pendiente;
+      const saldado = e.pendiente === 0;
+      tb.append(el("tr", { class: saldado ? "saldada" : "" },
         el("td", {}, el("strong", {}, n)),
-        el("td", {}, porEst[n].dias.size + " día(s)"),
-        el("td", {}, el("strong", {}, cop(porEst[n].total))),
+        el("td", {}, e.dias.size + " día(s)"),
+        el("td", {}, cop(e.total)),
+        el("td", {}, saldado
+          ? el("span", { class: "badge ok" }, "Saldado")
+          : el("strong", {}, cop(e.pendiente))),
+        el("td", { class: "row-actions" }, saldado
+          ? el("button", { class: "btn ghost small", onclick: () => marcarPagado(ctx, e.regs, false, cargar) }, "Reabrir")
+          : el("button", { class: "btn primary small", onclick: () => saldarCuenta(ctx, n, e, cargar) }, "💵 Saldar")),
       ));
     });
-    tb.append(el("tr", { class: "total-row" }, el("td", { colspan: "2" }, "TOTAL GENERAL"), el("td", {}, el("strong", {}, cop(granTotal)))));
+    tb.append(el("tr", { class: "total-row" },
+      el("td", { colspan: "2" }, "TOTAL GENERAL"),
+      el("td", {}, el("strong", {}, cop(granTotal))),
+      el("td", {}, el("strong", {}, cop(granPend))),
+      el("td", {}, "")));
     semCont.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
-      el("thead", {}, el("tr", {}, ...["Estudiante", "Días", "Total a pagar"].map((h) => el("th", {}, h)))), tb)));
+      el("thead", {}, el("tr", {}, ...["Estudiante", "Días", "Consumido", "Pendiente", ""].map((h) => el("th", {}, h)))), tb)));
   }
   fFecha.onchange = pintar;
   await cargar();
@@ -189,6 +207,20 @@ function editarPrecios(onSave) {
       } catch (e) { toast("Error: " + e.message, "error"); }
     } },
   ]);
+}
+
+// Marca como pagados (o reabre) un conjunto de consumos del estudiante.
+async function marcarPagado(ctx, regs, pagado, onSave) {
+  const objetivo = regs.filter((d) => !!d.pagado !== pagado);
+  await Promise.all(objetivo.map((d) =>
+    actualizar(ctx.temporadaId, "musicafe", d.id, { pagado, pagadoFecha: pagado ? hoyISO() : null })));
+  toast(pagado ? "Cuenta saldada" : "Cuenta reabierta");
+  onSave && onSave();
+}
+
+function saldarCuenta(ctx, nombre, e, onSave) {
+  confirmar(`¿Marcar como pagada la cuenta de ${nombre} por ${cop(e.pendiente)}?`,
+    () => marcarPagado(ctx, e.regs, true, onSave));
 }
 
 function del(ctx, dato, onSave) {
