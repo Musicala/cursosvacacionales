@@ -1,6 +1,7 @@
 // Módulo Estadísticas: compara todas las temporadas (inscritos, ingresos, recaudo…).
 import { el, cop, fmtCorta } from "../ui.js?v=3";
-import { listarTemporadas, listar } from "../db.js?v=3";
+import { listarTemporadas, listar, listarPagos } from "../db.js?v=5";
+import { totalPagado } from "../pagos.js?v=1";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" }, el("h2", {}, "📈 Estadísticas")));
@@ -18,7 +19,11 @@ export default async function render(root, ctx) {
       listar(t.id, "musicafe"),
     ]);
     const ingresos = ins.reduce((s, d) => s + (Number(d.valor) || 0), 0);
-    const recaudado = ins.filter((d) => d.estadoPago === "Pagado").reduce((s, d) => s + (Number(d.valor) || 0), 0);
+    await Promise.all(ins.map(async (d) => {
+      d.pagos = await listarPagos(t.id, d.id);
+      d.pagosCargados = true;
+    }));
+    const recaudado = ins.reduce((s, d) => s + totalPagado(d), 0);
     const conRuta = ins.filter((d) => d.ruta).length;
     const musicafe = caf.reduce((s, d) => s + (Number(d.total) || 0), 0);
     return {

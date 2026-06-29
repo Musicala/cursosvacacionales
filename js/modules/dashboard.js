@@ -1,7 +1,9 @@
 // Módulo Tablero: resumen de la temporada.
 import { el, cop } from "../ui.js?v=3";
-import { listar } from "../db.js?v=3";
+import { listar } from "../db.js?v=5";
 import { ESTADOS_CONTACTO, RUTA_MINIMO, semanasDetalle, semanaActualInfo } from "../catalogos.js?v=4";
+import { listarPagos } from "../db.js?v=5";
+import { totalPagado } from "../pagos.js?v=1";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
@@ -22,7 +24,11 @@ export default async function render(root, ctx) {
   const interesados = contactos.filter((c) => ["Interesado", "Contactado", "En seguimiento", "Confirmado"].includes(c.estado)).length;
   const antiguos = contactos.filter((c) => c.estado === "Antiguo").length;
   const ingresos = inscripciones.reduce((s, d) => s + (Number(d.valor) || 0), 0);
-  const recaudado = inscripciones.filter((d) => d.estadoPago === "Pagado").reduce((s, d) => s + (Number(d.valor) || 0), 0);
+  await Promise.all(inscripciones.map(async (d) => {
+    d.pagos = await listarPagos(ctx.temporadaId, d.id);
+    d.pagosCargados = true;
+  }));
+  const recaudado = inscripciones.reduce((s, d) => s + totalPagado(d), 0);
   const conRuta = inscripciones.filter((d) => d.ruta).length + contactos.filter((d) => d.ruta).length;
   const musicafeTotal = musicafe.reduce((s, d) => s + (Number(d.total) || 0), 0);
 

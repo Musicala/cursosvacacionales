@@ -66,6 +66,30 @@ export async function obtener(temporadaId, sub, id) {
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 
+// ----- Pagos de una inscripción -----
+function pagosCol(temporadaId, inscripcionId) {
+  return collection(db, "temporadas", temporadaId, "inscripciones", inscripcionId, "pagos");
+}
+
+export async function listarPagos(temporadaId, inscripcionId) {
+  try {
+    const snap = await getDocs(query(pagosCol(temporadaId, inscripcionId), orderBy("fecha", "desc")));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch {
+    const snap = await getDocs(pagosCol(temporadaId, inscripcionId));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }
+}
+
+export async function crearPago(temporadaId, inscripcionId, data) {
+  const ref = await addDoc(pagosCol(temporadaId, inscripcionId), { ...data, creado: serverTimestamp() });
+  return ref.id;
+}
+
+export async function eliminarPago(temporadaId, inscripcionId, pagoId) {
+  await deleteDoc(doc(db, "temporadas", temporadaId, "inscripciones", inscripcionId, "pagos", pagoId));
+}
+
 // ----- Config global (catálogos editables) -----
 export async function leerConfig() {
   const d = await getDoc(doc(db, "config", "global"));

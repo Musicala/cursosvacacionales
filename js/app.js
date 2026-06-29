@@ -1,11 +1,11 @@
 import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./firebase.js?v=4";
 import { $, el, toast, fmtCorta } from "./ui.js?v=4";
-import { listarTemporadas, crearTemporada } from "./db.js?v=4";
+import { listarTemporadas, crearTemporada } from "./db.js?v=5";
 
-import dashboard from "./modules/dashboard.js?v=5";
-import estadisticas from "./modules/estadisticas.js?v=4";
+import dashboard from "./modules/dashboard.js?v=6";
+import estadisticas from "./modules/estadisticas.js?v=5";
 import contactos from "./modules/contactos.js?v=4";
-import inscripciones from "./modules/inscripciones.js?v=4";
+import inscripciones from "./modules/inscripciones.js?v=5";
 import horarios from "./modules/horarios.js?v=6";
 import asistencia from "./modules/asistencia.js?v=4";
 import musicafe from "./modules/musicafe.js?v=5";
@@ -14,7 +14,7 @@ import materiales from "./modules/materiales.js?v=4";
 import musipuntos from "./modules/musipuntos.js?v=4";
 import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=4";
 import { conectarConCredencial } from "./base-general.js?v=4";
-import { leerConfig } from "./db.js?v=4";
+import { leerConfig } from "./db.js?v=5";
 
 const MODULOS = [
   { id: "dashboard",     nombre: "Tablero",        icono: "📊", render: dashboard },

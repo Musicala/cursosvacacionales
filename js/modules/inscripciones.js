@@ -1,7 +1,8 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
 import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js?v=3";
-import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas } from "../db.js?v=3";
+import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas, listarPagos, crearPago, eliminarPago } from "../db.js?v=5";
 import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=3";
+import { totalPagado, saldoInscripcion, estadoPagoCalculado, valoresPorSemana, pagosPorSemana } from "../pagos.js?v=1";
 
 export default async function render(root, ctx) {
   // Precios de la temporada (para autocompletar el valor según el paquete).
@@ -33,12 +34,16 @@ export default async function render(root, ctx) {
   const filtros = { q: "", semana: "", dia: "", grupo: "", pago: "", vista: "tabla", orden: "semana" };
   async function cargar() {
     datos = await listar(ctx.temporadaId, "inscripciones");
+    await Promise.all(datos.map(async (d) => {
+      d.pagos = await listarPagos(ctx.temporadaId, d.id);
+      d.pagosCargados = true;
+    }));
     pintar();
   }
   function pintar() {
     const total = datos.length;
     const ingresos = datos.reduce((s, d) => s + (Number(d.valor) || 0), 0);
-    const pagado = datos.filter((d) => d.estadoPago === "Pagado").reduce((s, d) => s + (Number(d.valor) || 0), 0);
+    const pagado = datos.reduce((s, d) => s + totalPagado(d), 0);
     const pendiente = ingresos - pagado;
     resumen.innerHTML = "";
     resumen.append(
@@ -224,6 +229,7 @@ function resumenDias(d, ctx) {
 
 function accionesInscripcion(d, ctx, onSave) {
   return el("div", { class: "row-actions" },
+    el("button", { class: "btn primary small", onclick: () => gestionarPagos(ctx, d, onSave) }, "Pagos"),
     el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, onSave) }, "Editar"),
     el("button", { class: "btn ghost small", onclick: () => del(ctx, d, onSave) }, "Eliminar"),
   );
@@ -242,7 +248,7 @@ function vistaTabla(datos, ctx, onSave) {
       el("td", {}, (d.semanas || []).join(", ")),
       el("td", {}, resumenDias(d, ctx)),
       el("td", {}, d.horario || ""),
-      el("td", {}, el("span", { class: "pill pago-" + (d.estadoPago || "").toLowerCase() }, d.estadoPago || "-")),
+      el("td", {}, resumenPago(d)),
       el("td", {}, d.ruta ? "Si" : ""),
       el("td", {}, d.direccion || ""),
       el("td", {}, textoObservaciones(d, ctx) ? el("div", { class: "insc-note" }, textoObservaciones(d, ctx)) : ""),
@@ -257,7 +263,7 @@ function vistaTarjetas(datos, ctx, onSave) {
   return el("div", { class: "insc-card-grid" }, datos.map((d) => el("article", { class: "insc-card" },
     el("div", { class: "insc-card-head" },
       el("div", {}, el("h3", {}, d.estudiante || "-"), el("div", { class: "muted small" }, [d.edad ? `${d.edad} anos` : "", d.grupo || ""].filter(Boolean).join(" · "))),
-      el("span", { class: "pill pago-" + (d.estadoPago || "").toLowerCase() }, d.estadoPago || "-"),
+      resumenPago(d),
     ),
     resumenDias(d, ctx),
     el("div", { class: "insc-card-meta" }, d.horario || "", d.ruta ? "Ruta: si" : "Sin ruta"),
@@ -293,10 +299,148 @@ function vistaSemanas(datos, ctx, onSave) {
       inscritos.length ? el("div", { class: "week-list" }, inscritos.map((d) => el("div", { class: "week-student" },
         el("div", {}, el("strong", {}, d.estudiante || "-"), el("div", { class: "muted small" }, [d.edad ? `${d.edad} anos` : "", d.grupo || ""].filter(Boolean).join(" · "))),
         el("div", { class: "week-days" }, diasDeInscrito(d, semana, ctx).map((dia) => el("span", { class: "day-chip" }, dia.slice(0, 3)))),
+        el("div", {}, estadoSemana(d, semana)),
         accionesInscripcion(d, ctx, onSave),
       ))) : el("div", { class: "empty compact" }, "Sin inscritos"),
     );
   }));
+}
+
+function resumenPago(d) {
+  const estado = estadoPagoCalculado(d);
+  return el("div", { class: "payment-summary" },
+    el("span", { class: "pill pago-" + estado.toLowerCase() }, estado),
+    el("span", { class: "small" }, `${cop(totalPagado(d))} de ${cop(d.valor)}`),
+    saldoInscripcion(d) ? el("span", { class: "muted small" }, `Debe ${cop(saldoInscripcion(d))}`) : null,
+  );
+}
+
+function estadoSemana(d, semana) {
+  const esperado = valoresPorSemana(d)[semana] || 0;
+  const abonado = pagosPorSemana(d)[semana] || 0;
+  const estado = esperado > 0 && abonado >= esperado ? "Pagada" : abonado > 0 ? "Pago parcial" : "Pendiente";
+  return el("div", { class: "week-payment" },
+    el("span", { class: "pill pago-" + (estado === "Pagada" ? "pagado" : estado === "Pago parcial" ? "abono" : "pendiente") }, estado),
+    el("span", { class: "muted small" }, `${cop(abonado)} de ${cop(esperado)}`),
+  );
+}
+
+function gestionarPagos(ctx, d, onSave) {
+  const pagos = (d.pagos || []).slice().sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
+  const body = el("div", { class: "payments-manager" });
+  const refrescarCabecera = () => body.append(el("div", { class: "payment-balance" },
+    el("div", {}, el("span", { class: "muted small" }, "Valor total"), el("strong", {}, cop(d.valor))),
+    el("div", {}, el("span", { class: "muted small" }, "Abonado"), el("strong", {}, cop(totalPagado(d)))),
+    el("div", {}, el("span", { class: "muted small" }, "Saldo"), el("strong", {}, cop(saldoInscripcion(d)))),
+  ));
+  refrescarCabecera();
+
+  const semanasValor = valoresPorSemana(d);
+  const semanasPagado = pagosPorSemana(d);
+  body.append(el("h4", {}, "Estado por semana"));
+  body.append(el("div", { class: "payment-weeks" }, ...(d.semanas || []).map((semana) =>
+    el("div", { class: "payment-week-row" },
+      el("div", {}, el("strong", {}, semana), el("div", { class: "muted small" }, `Valor ${cop(semanasValor[semana])}`)),
+      estadoSemana(d, semana),
+    )
+  )));
+
+  body.append(el("h4", {}, "Historial de movimientos"));
+  const historial = el("div", { class: "payment-history" });
+  if (!pagos.length) historial.append(el("div", { class: "empty compact" }, d.estadoPago === "Pagado"
+    ? "Registro anterior marcado como pagado. Los próximos movimientos quedarán detallados aquí."
+    : "Aún no hay abonos registrados."));
+  pagos.forEach((p) => historial.append(el("div", { class: "payment-history-row" },
+    el("div", {},
+      el("strong", {}, `${fmtFecha(p.fecha)} · ${cop(p.valor)}`),
+      el("div", { class: "muted small" }, [p.medio, p.nota].filter(Boolean).join(" · ")),
+      el("div", { class: "muted small" }, Object.entries(p.distribucion || {}).map(([s, v]) => `${s}: ${cop(v)}`).join(" · ")),
+    ),
+    el("button", { class: "btn ghost small", onclick: () => confirmar(`¿Eliminar el pago de ${cop(p.valor)}?`, async () => {
+      await eliminarPago(ctx.temporadaId, d.id, p.id);
+      const restante = (d.pagos || []).filter((x) => x.id !== p.id).reduce((s, x) => s + (Number(x.valor) || 0), 0);
+      const estado = restante >= (Number(d.valor) || 0) && restante > 0 ? "Pagado" : restante > 0 ? "Abono" : "Pendiente";
+      await actualizar(ctx.temporadaId, "inscripciones", d.id, { estadoPago: estado });
+      toast("Pago eliminado");
+      onSave && onSave();
+    }) }, "Eliminar"),
+  )));
+  body.append(historial);
+
+  modal(`Pagos · ${d.estudiante}`, body, [
+    { texto: "Cerrar", clase: "ghost" },
+    { texto: "+ Registrar abono", clase: "primary", onClick: (dlg) => { dlg.close(); registrarAbono(ctx, d, onSave); } },
+  ]);
+}
+
+function registrarAbono(ctx, d, onSave) {
+  const saldo = saldoInscripcion(d);
+  if (saldo <= 0) { toast("Esta inscripción ya está pagada", "error"); return; }
+  const fecha = el("input", { type: "date", value: hoyISO() });
+  const valor = el("input", { type: "number", min: "1", max: String(saldo), value: String(saldo) });
+  const medio = el("input", { placeholder: "Nequi, transferencia, efectivo…" });
+  const nota = el("input", { placeholder: "Acuerdo o referencia (opcional)" });
+  const distribucionWrap = el("div", { class: "payment-allocation full" });
+  const valores = valoresPorSemana(d);
+  const pagado = pagosPorSemana(d);
+  const campos = {};
+
+  (d.semanas || []).forEach((semana) => {
+    const pendiente = Math.max(0, (valores[semana] || 0) - (pagado[semana] || 0));
+    const input = el("input", { type: "number", min: "0", max: String(pendiente), value: "0", "data-semana": semana });
+    campos[semana] = { input, pendiente };
+    distribucionWrap.append(el("label", { class: "payment-allocation-row" },
+      el("span", {}, el("strong", {}, semana), el("small", { class: "muted" }, ` Pendiente ${cop(pendiente)}`)),
+      input,
+    ));
+  });
+
+  function distribuirAutomatico() {
+    let restante = Math.max(0, Number(valor.value) || 0);
+    Object.values(campos).forEach(({ input, pendiente }) => {
+      const asignado = Math.min(restante, pendiente);
+      input.value = String(asignado);
+      restante -= asignado;
+    });
+  }
+  valor.addEventListener("input", distribuirAutomatico);
+  distribuirAutomatico();
+
+  const grid = el("div", { class: "form-grid" },
+    el("label", {}, "Fecha", fecha),
+    el("label", {}, "Valor del abono", valor),
+    el("label", {}, "Medio de pago", medio),
+    el("label", {}, "Nota", nota),
+    el("div", { class: "full payment-allocation-head" },
+      el("div", {}, el("strong", {}, "Aplicar a semanas"), el("div", { class: "muted small" }, "Se aplica primero a la semana pendiente más antigua. Puedes ajustar los valores.")),
+      el("button", { class: "btn ghost small", onclick: distribuirAutomatico }, "Distribuir automáticamente"),
+    ),
+    distribucionWrap,
+  );
+  modal(`Registrar abono · ${d.estudiante}`, grid, [
+    { texto: "Cancelar", clase: "ghost" },
+    { texto: "Guardar abono", clase: "primary", onClick: async (dlg) => {
+      const monto = Number(valor.value) || 0;
+      const distribucion = Object.fromEntries(Object.entries(campos)
+        .map(([semana, { input }]) => [semana, Number(input.value) || 0])
+        .filter(([, v]) => v > 0));
+      const asignado = Object.values(distribucion).reduce((s, v) => s + v, 0);
+      if (monto <= 0 || monto > saldo) { toast(`El abono debe estar entre $1 y ${cop(saldo)}`, "error"); return; }
+      if (asignado !== monto) { toast("La distribución por semanas debe sumar exactamente el valor del abono", "error"); return; }
+      if (Object.entries(distribucion).some(([semana, v]) => v > campos[semana].pendiente)) {
+        toast("Una semana tiene asignado más de lo que debe", "error"); return;
+      }
+      try {
+        await crearPago(ctx.temporadaId, d.id, { fecha: fecha.value || hoyISO(), valor: monto, medio: medio.value.trim(), nota: nota.value.trim(), distribucion });
+        const nuevoTotal = totalPagado(d) + monto;
+        const nuevoEstado = nuevoTotal >= (Number(d.valor) || 0) ? "Pagado" : "Abono";
+        await actualizar(ctx.temporadaId, "inscripciones", d.id, { estadoPago: nuevoEstado, medioPago: medio.value.trim() || d.medioPago || "" });
+        dlg.close();
+        toast("Abono registrado");
+        onSave && onSave();
+      } catch (e) { toast("Error: " + e.message, "error"); }
+    } },
+  ]);
 }
 
 function tarjeta(t, v, tono = "") {
@@ -497,6 +641,8 @@ function editar(ctx, dato, onSave) {
     descuentosDisponibles.length ? el("label", { class: "full" }, "Descuentos aplicados", descuentosWrap) : null,
     el("label", { class: "full" }, "Observaciones", inp("observaciones", { ph: "Notas del pago, acuerdos…" })),
   );
+  f.estadoPago.disabled = Boolean(dato);
+  if (dato) f.estadoPago.title = "Se calcula automáticamente según los abonos registrados";
 
   function descuentosSeleccionados() {
     return [...descuentosWrap.querySelectorAll("input:checked")].map((c) => c.value);
@@ -573,6 +719,10 @@ function editar(ctx, dato, onSave) {
       };
       if (!payload.estudiante) { toast("Falta el nombre del estudiante", "error"); return; }
       const destino = selTemporada.value || ctx.temporadaId;
+      if (destino !== ctx.temporadaId && (d.pagos || []).length) {
+        toast("No se puede mover una inscripción con pagos registrados. Elimina o traslada primero sus movimientos.", "error");
+        return;
+      }
       try {
         if (destino !== ctx.temporadaId) {
           // Mover/crear en otra temporada.
