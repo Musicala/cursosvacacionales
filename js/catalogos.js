@@ -2,15 +2,16 @@
 // Estos se usan como base; más adelante se pueden editar desde Firestore (config).
 
 export const GRUPOS = [
-  { id: "musicalitos", nombre: "Musicalitos", edadMin: 3, edadMax: 5 },
-  { id: "musikids",    nombre: "Musikids",    edadMin: 6, edadMax: 9 },
-  { id: "musiteens",   nombre: "Musiteens",   edadMin: 10, edadMax: 16 },
+  { id: "musicalitos", nombre: "Musicalitos 4 a 6 años", edadMin: 4, edadMax: 6 },
+  { id: "musikids",    nombre: "Musikids 7 a 11 años", edadMin: 7, edadMax: 11 },
+  { id: "musiteens",   nombre: "Musiteens 12 a 15 años", edadMin: 12, edadMax: 15 },
+  { id: "mixto",       nombre: "Grupo mixto", edadMin: null, edadMax: null },
 ];
 
 // Sugerencia de grupo según la edad del estudiante.
 export function grupoPorEdad(edad) {
   const e = Number(edad);
-  const g = GRUPOS.find((x) => e >= x.edadMin && e <= x.edadMax);
+  const g = GRUPOS.find((x) => x.edadMin != null && e >= x.edadMin && e <= x.edadMax);
   return g ? g.id : "";
 }
 

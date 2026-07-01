@@ -2,7 +2,7 @@
 // Guarda todo en el documento de la temporada -> queda como histórico por temporada.
 import { el, cop, toast, modal, fmtFecha, fmtCorta } from "../ui.js?v=3";
 import { obtenerTemporada, actualizarTemporada } from "../db.js?v=3";
-import { PAQUETES, RUTA_MINIMO, DIAS, DIAS_POSIBLES, NUM_SEMANAS_DEFAULT, semanasDetalle } from "../catalogos.js?v=3";
+import { PAQUETES, RUTA_MINIMO, DIAS, DIAS_POSIBLES, NUM_SEMANAS_DEFAULT, semanasDetalle } from "../catalogos.js?v=4";
 
 // Precios por defecto (concepto + valor) para una temporada nueva.
 function preciosPorDefecto() {
@@ -15,6 +15,10 @@ function descuentosPorDefecto() {
     { nombre: "Hermano", tipo: "porcentaje", valor: 0 },
     { nombre: "Pago anticipado", tipo: "porcentaje", valor: 0 },
   ];
+}
+
+function mediosPagoPorDefecto() {
+  return ["Efectivo", "Transferencia bancaria", "Nequi", "Daviplata", "Tarjeta"];
 }
 
 export default async function render(root, ctx) {
@@ -78,6 +82,13 @@ export default async function render(root, ctx) {
     ? el("div", { class: "nota-texto" }, t.descuentos)
     : (descuentosLista.length ? null : el("div", { class: "empty" }, "Sin descuentos registrados. Edita la info para agregarlos.")));
   root.append(pDesc);
+
+  const pMedios = el("div", { class: "panel" });
+  pMedios.append(el("h3", {}, "Medios de pago recibidos"));
+  const mediosPago = Array.isArray(t.mediosPago) && t.mediosPago.length ? t.mediosPago : mediosPagoPorDefecto();
+  pMedios.append(el("div", { class: "chips-input" },
+    ...mediosPago.map((medio) => el("span", { class: "pill" }, medio))));
+  root.append(pMedios);
 
   // ----- Ruta / notas -----
   const pNotas = el("div", { class: "panel" });
@@ -149,6 +160,26 @@ export function formularioTemporada(t, onSave) {
   pintarDescuentos();
   const addDescuento = el("button", { class: "btn ghost small", onclick: () => { descuentosLista.push({ nombre: "", tipo: "porcentaje", valor: 0 }); pintarDescuentos(); } }, "+ Agregar descuento");
 
+  const mediosPago = Array.isArray(d.mediosPago) && d.mediosPago.length
+    ? [...d.mediosPago]
+    : mediosPagoPorDefecto();
+  const filasMediosPago = el("div", { class: "lista-edit" });
+  function pintarMediosPago() {
+    filasMediosPago.innerHTML = "";
+    mediosPago.forEach((medio, i) => {
+      const nombre = el("input", { type: "text", value: medio || "", placeholder: "Ej: Nequi" });
+      nombre.oninput = () => (mediosPago[i] = nombre.value);
+      filasMediosPago.append(el("div", { class: "lista-edit-row" }, nombre,
+        el("button", { class: "btn ghost small", onclick: () => { mediosPago.splice(i, 1); pintarMediosPago(); } }, "Eliminar")));
+    });
+  }
+  pintarMediosPago();
+  const addMedioPago = el("button", { class: "btn ghost small", onclick: () => {
+    mediosPago.push("");
+    pintarMediosPago();
+    filasMediosPago.lastElementChild?.querySelector("input")?.focus();
+  } }, "+ Agregar medio de pago");
+
   const descuentos = el("textarea", { rows: "3", placeholder: "Ej: 10% por hermano, 5% pago anticipado, descuento por semana completa…" });
   descuentos.value = d.descuentos || "";
   const notas = el("textarea", { rows: "2", placeholder: "Notas internas de la temporada…" });
@@ -219,6 +250,9 @@ export function formularioTemporada(t, onSave) {
     el("h4", {}, "Descuentos configurables"),
     el("p", { class: "muted small" }, "Estos descuentos se pueden marcar en Contactos o al hacer la inscripción. Si marcas varios, se acumulan."),
     filasDescuentos, addDescuento,
+    el("h4", {}, "Medios de pago recibidos"),
+    el("p", { class: "muted small" }, "Estas opciones aparecerán como lista al crear o editar una inscripción."),
+    filasMediosPago, addMedioPago,
     el("label", { class: "block-label" }, "🏷️ Descuentos y promociones", descuentos),
     el("label", { class: "block-label" }, "Notas", notas),
   );
@@ -251,6 +285,7 @@ export function formularioTemporada(t, onSave) {
           tipo: d.tipo === "valor" ? "valor" : "porcentaje",
           valor: Number(d.valor) || 0,
         })),
+        mediosPago: [...new Set(mediosPago.map((m) => m.trim()).filter(Boolean))],
         descuentos: descuentos.value.trim(),
         notas: notas.value.trim(),
       };

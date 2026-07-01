@@ -1,8 +1,10 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
 import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas, listarPagos, crearPago, eliminarPago } from "../db.js?v=5";
-import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=3";
+import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=4";
 import { totalPagado, saldoInscripcion, estadoPagoCalculado, valoresPorSemana, pagosPorSemana } from "../pagos.js?v=1";
+
+const MEDIOS_PAGO_DEFAULT = ["Efectivo", "Transferencia bancaria", "Nequi", "Daviplata", "Tarjeta"];
 
 export default async function render(root, ctx) {
   // Precios de la temporada (para autocompletar el valor según el paquete).
@@ -12,6 +14,9 @@ export default async function render(root, ctx) {
   ctx._semanas = semanasDe(temp);
   ctx._semanasDetalle = semanasDetalle(temp);
   ctx._descuentosLista = Array.isArray(temp.descuentosLista) ? temp.descuentosLista : [];
+  ctx._mediosPago = Array.isArray(temp.mediosPago) && temp.mediosPago.length
+    ? temp.mediosPago.filter(Boolean)
+    : MEDIOS_PAGO_DEFAULT;
   ctx._diasTemporada = diasDe(temp);
   // Lista de temporadas (para poder asignar/mover cada inscrito).
   ctx._temporadas = await listarTemporadas();
@@ -378,7 +383,9 @@ function registrarAbono(ctx, d, onSave) {
   if (saldo <= 0) { toast("Esta inscripción ya está pagada", "error"); return; }
   const fecha = el("input", { type: "date", value: hoyISO() });
   const valor = el("input", { type: "number", min: "1", max: String(saldo), value: String(saldo) });
-  const medio = el("input", { placeholder: "Nequi, transferencia, efectivo…" });
+  const medio = el("select", {},
+    el("option", { value: "" }, "—"),
+    ...(ctx._mediosPago || MEDIOS_PAGO_DEFAULT).map((opcion) => el("option", { value: opcion }, opcion)));
   const nota = el("input", { placeholder: "Acuerdo o referencia (opcional)" });
   const distribucionWrap = el("div", { class: "payment-allocation full" });
   const valores = valoresPorSemana(d);
@@ -603,7 +610,11 @@ function editar(ctx, dato, onSave) {
       .filter(({ c }) => !term || etiquetaC(c).toLowerCase().includes(term))
       .slice(0, 30);
     lista.innerHTML = "";
-    if (!res.length) { lista.style.display = "none"; return; }
+    if (!res.length) {
+      lista.append(el("div", { class: "combo-empty" }, "No se encontraron contactos"));
+      lista.style.display = "";
+      return;
+    }
     res.forEach(({ c }) => {
       const item = el("div", { class: "combo-item", onmousedown: (e) => {
         e.preventDefault();
@@ -631,7 +642,10 @@ function editar(ctx, dato, onSave) {
     el("label", {}, "Valor", inp("valor", { type: "number", ph: "0" })),
     resumenPrecio,
     el("label", {}, "Estado de pago", sel("estadoPago", ESTADOS_PAGO)),
-    el("label", {}, "Medio de pago", inp("medioPago", { ph: "Nequi / Transferencia…" })),
+    el("label", {}, "Medio de pago", sel("medioPago", [
+      "",
+      ...new Set([...(ctx._mediosPago || []), d.medioPago].filter(Boolean)),
+    ])),
     el("label", {}, "Acudiente", inp("acudiente")),
     el("label", {}, "Celular", inp("celular", { ph: "+57…" })),
     el("label", { class: "full" }, "Semanas inscritas", semWrap),
@@ -680,9 +694,9 @@ function editar(ctx, dato, onSave) {
   pintarDiasInscritos();
   recalcularValor(!dato);
 
-  f.edad.addEventListener("change", () => {
+  f.edad.addEventListener("input", () => {
     const g = (GRUPOS.find((x) => x.id === grupoPorEdad(f.edad.value)) || {}).nombre;
-    if (g && !f.grupo.value) f.grupo.value = g;
+    if (g) f.grupo.value = g;
   });
   // Autocompletar el valor según el paquete elegido (precio de la temporada).
   f.paquete.addEventListener("change", () => {

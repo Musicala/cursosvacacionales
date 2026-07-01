@@ -1,7 +1,7 @@
 // Módulo Contactos: interesados, antiguos (re-contacto), seguimiento.
 import { el, esc, toast, modal, confirmar, fmtCorta } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar } from "../db.js?v=3";
-import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, semanasDetalle } from "../catalogos.js?v=3";
+import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, semanasDetalle } from "../catalogos.js?v=4";
 import { estaConfigurada, onAuthBG, loginBG, usuarioBG, traerVacacionales } from "../base-general.js?v=3";
 import { buscarDuplicado } from "../dedup.js?v=3";
 

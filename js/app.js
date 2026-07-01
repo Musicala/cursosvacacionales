@@ -4,15 +4,15 @@ import { listarTemporadas, crearTemporada } from "./db.js?v=5";
 
 import dashboard from "./modules/dashboard.js?v=6";
 import estadisticas from "./modules/estadisticas.js?v=5";
-import contactos from "./modules/contactos.js?v=4";
-import inscripciones from "./modules/inscripciones.js?v=5";
-import horarios from "./modules/horarios.js?v=6";
+import contactos from "./modules/contactos.js?v=5";
+import inscripciones from "./modules/inscripciones.js?v=6";
+import horarios from "./modules/horarios.js?v=7";
 import asistencia from "./modules/asistencia.js?v=4";
 import musicafe from "./modules/musicafe.js?v=5";
 import ruta from "./modules/ruta.js?v=4";
 import materiales from "./modules/materiales.js?v=4";
 import musipuntos from "./modules/musipuntos.js?v=4";
-import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=4";
+import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=5";
 import { conectarConCredencial } from "./base-general.js?v=4";
 import { leerConfig } from "./db.js?v=5";
 

@@ -183,12 +183,14 @@ label.check input,.checks .check input{width:auto}
 .guardian-details dd{margin:.12rem 0 0;color:#334155;font-size:.88rem;line-height:1.4;white-space:pre-wrap}
 
 /* ---- Buscador de contactos (combobox) ---- */
-.combo{position:relative}
+.combo{position:relative;width:100%}
+.combo>input{width:100%}
 .combo-list{position:absolute;z-index:10;left:0;right:0;top:100%;margin-top:2px;
   background:#fff;border:1px solid #e3d9fb;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);
   max-height:240px;overflow:auto}
 .combo-item{padding:.5rem .65rem;cursor:pointer;font-size:.88rem}
 .combo-item:hover{background:#f3effe}
+.combo-empty{padding:.65rem;color:var(--muted);font-size:.85rem;font-weight:500}
 
 /* ---- Horario en inscripciones / fechas de semana ---- */
 .horario-sel{display:flex;flex-direction:column;gap:.4rem}
@@ -250,6 +252,8 @@ label.check input,.checks .check input{width:auto}
 /* ---- Info temporada: editor de precios ---- */
 .precio-edit{display:flex;flex-direction:column;gap:.4rem;margin:.4rem 0}
 .precio-row{display:grid;grid-template-columns:1fr 130px auto;gap:.5rem;align-items:center}
+.lista-edit{display:flex;flex-direction:column;gap:.4rem;margin:.4rem 0}
+.lista-edit-row{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center}
 .block-label{display:block;margin-top:.8rem}
 .block-label textarea{width:100%;margin-top:.25rem}
 .nota-texto{white-space:pre-wrap;background:#faf8ff;border:1px solid var(--line);border-radius:9px;padding:.7rem .9rem;line-height:1.5}
