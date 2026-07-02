@@ -15,6 +15,7 @@ import musipuntos from "./modules/musipuntos.js?v=4";
 import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=5";
 import { conectarConCredencial } from "./base-general.js?v=4";
 import { leerConfig } from "./db.js?v=5";
+import { migrarNombresGrupos } from "./migraciones.js?v=1";
 
 const MODULOS = [
   { id: "dashboard",     nombre: "Tablero",        icono: "📊", render: dashboard },
@@ -154,6 +155,20 @@ async function iniciarApp() {
   }
   construirShell();
   navegar(estado.moduloActivo);
+
+  // Migración única: renombra los grupos guardados con nombres viejos.
+  // Corre en segundo plano para no demorar el arranque; si cambió algo,
+  // repinta el módulo activo para mostrar los datos ya actualizados.
+  if (estado.rol === "admin") {
+    migrarNombresGrupos(estado.temporadas)
+      .then((cambiados) => {
+        if (cambiados) {
+          toast(`Se actualizaron ${cambiados} registro(s) a los nuevos nombres de grupos`);
+          navegar(estado.moduloActivo);
+        }
+      })
+      .catch((e) => console.warn("Migración de nombres de grupos falló", e));
+  }
 }
 
 // ---------- Shell (sidebar + topbar + contenido) ----------
