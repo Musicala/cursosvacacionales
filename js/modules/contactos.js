@@ -1,7 +1,7 @@
 // Módulo Contactos: interesados, antiguos (re-contacto), seguimiento.
 import { el, esc, toast, modal, confirmar, fmtCorta } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar } from "../db.js?v=3";
-import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, semanasDetalle } from "../catalogos.js?v=4";
+import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, nombreGrupo, semanasDetalle } from "../catalogos.js?v=5";
 import { estaConfigurada, onAuthBG, loginBG, usuarioBG, traerVacacionales } from "../base-general.js?v=3";
 import { buscarDuplicado } from "../dedup.js?v=3";
 
@@ -34,7 +34,7 @@ export default async function render(root, ctx) {
 
   let datos = [];
   async function cargar() {
-    datos = await listar(ctx.temporadaId, "contactos");
+    datos = (await listar(ctx.temporadaId, "contactos")).map((d) => ({ ...d, grupo: nombreGrupo(d.grupo) }));
     pintar();
   }
 

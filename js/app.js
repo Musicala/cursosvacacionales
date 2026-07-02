@@ -2,12 +2,12 @@ import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./fir
 import { $, el, toast, fmtCorta } from "./ui.js?v=4";
 import { listarTemporadas, crearTemporada } from "./db.js?v=5";
 
-import dashboard from "./modules/dashboard.js?v=6";
+import dashboard from "./modules/dashboard.js?v=7";
 import estadisticas from "./modules/estadisticas.js?v=5";
-import contactos from "./modules/contactos.js?v=5";
-import inscripciones from "./modules/inscripciones.js?v=6";
-import horarios from "./modules/horarios.js?v=7";
-import asistencia from "./modules/asistencia.js?v=4";
+import contactos from "./modules/contactos.js?v=6";
+import inscripciones from "./modules/inscripciones.js?v=7";
+import horarios from "./modules/horarios.js?v=8";
+import asistencia from "./modules/asistencia.js?v=5";
 import musicafe from "./modules/musicafe.js?v=5";
 import ruta from "./modules/ruta.js?v=4";
 import materiales from "./modules/materiales.js?v=4";

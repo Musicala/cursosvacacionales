@@ -8,6 +8,19 @@ export const GRUPOS = [
   { id: "mixto",       nombre: "Grupo mixto", edadMin: null, edadMax: null },
 ];
 
+// Los datos guardados antes del cambio de nombres usan los nombres viejos.
+const GRUPOS_NOMBRES_VIEJOS = {
+  "Musicalitos": "Musicalitos 4 a 6 años",
+  "Musikids": "Musikids 7 a 11 años",
+  "Musiteens": "Musiteens 12 a 15 años",
+};
+
+// Traduce un nombre de grupo guardado (viejo o nuevo) al nombre actual.
+export function nombreGrupo(g) {
+  const v = (g || "").trim();
+  return GRUPOS_NOMBRES_VIEJOS[v] || v;
+}
+
 // Sugerencia de grupo según la edad del estudiante.
 export function grupoPorEdad(edad) {
   const e = Number(edad);

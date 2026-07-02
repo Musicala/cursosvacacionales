@@ -1,7 +1,7 @@
 // Módulo Asistencia: marca diaria por estudiante inscrito.
 import { el, toast, hoyISO } from "../ui.js?v=3";
 import { listar, crear, actualizar } from "../db.js?v=3";
-import { ASISTENCIA } from "../catalogos.js?v=3";
+import { ASISTENCIA, nombreGrupo } from "../catalogos.js?v=5";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" }, el("h2", {}, "📝 Asistencia")));
@@ -14,7 +14,7 @@ export default async function render(root, ctx) {
   const cont = el("div", { class: "panel" });
   root.append(cont);
 
-  const inscritos = await listar(ctx.temporadaId, "inscripciones");
+  const inscritos = (await listar(ctx.temporadaId, "inscripciones")).map((d) => ({ ...d, grupo: nombreGrupo(d.grupo) }));
 
   async function pintar() {
     const fecha = fFecha.value;

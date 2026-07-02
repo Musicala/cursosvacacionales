@@ -1,7 +1,7 @@
 // Módulo Tablero: resumen de la temporada.
 import { el, cop } from "../ui.js?v=3";
 import { listar } from "../db.js?v=5";
-import { ESTADOS_CONTACTO, RUTA_MINIMO, semanasDetalle, semanaActualInfo } from "../catalogos.js?v=4";
+import { ESTADOS_CONTACTO, RUTA_MINIMO, nombreGrupo, semanasDetalle, semanaActualInfo } from "../catalogos.js?v=5";
 import { listarPagos } from "../db.js?v=5";
 import { totalPagado } from "../pagos.js?v=1";
 
@@ -70,7 +70,7 @@ export default async function render(root, ctx) {
   const panel2 = el("div", { class: "panel" });
   panel2.append(el("h3", {}, "Inscritos por grupo"));
   const porGrupo = {};
-  inscripciones.forEach((i) => { const g = i.grupo || "Sin grupo"; porGrupo[g] = (porGrupo[g] || 0) + 1; });
+  inscripciones.forEach((i) => { const g = nombreGrupo(i.grupo) || "Sin grupo"; porGrupo[g] = (porGrupo[g] || 0) + 1; });
   const claves = Object.keys(porGrupo);
   if (!claves.length) panel2.append(el("div", { class: "empty" }, "Sin inscritos."));
   else {

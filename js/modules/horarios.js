@@ -1,7 +1,7 @@
 // Módulo Horarios y docentes: asignación de clases por semana/día con docente, taller y salón.
 import { el, toast, modal, confirmar } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
-import { GRUPOS, AREAS, DOCENTES, semanasDe, diasDe, formatoRangoSemana, semanaActualInfo } from "../catalogos.js?v=4";
+import { GRUPOS, AREAS, DOCENTES, nombreGrupo, semanasDe, diasDe, formatoRangoSemana, semanaActualInfo } from "../catalogos.js?v=5";
 
 let DOCS = DOCENTES;
 
@@ -53,7 +53,7 @@ export default async function render(root, ctx) {
 
   let datos = [];
   async function cargar() {
-    datos = await listar(ctx.temporadaId, "grupos");
+    datos = (await listar(ctx.temporadaId, "grupos")).map((d) => ({ ...d, grupo: nombreGrupo(d.grupo) }));
     if (!soloLectura) await sincronizarCorreosDocentes(ctx, datos);
     if (soloLectura) datos = datos.filter((d) => (d.docente || "") === docenteNombre);
     pintar();

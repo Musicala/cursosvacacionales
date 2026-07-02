@@ -1,7 +1,7 @@
 // Módulo Inscripciones: estudiantes formalizados con paquete, semana, valor y pago.
 import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas, listarPagos, crearPago, eliminarPago } from "../db.js?v=5";
-import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=4";
+import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, nombreGrupo, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=5";
 import { totalPagado, saldoInscripcion, estadoPagoCalculado, valoresPorSemana, pagosPorSemana } from "../pagos.js?v=1";
 
 const MEDIOS_PAGO_DEFAULT = ["Efectivo", "Transferencia bancaria", "Nequi", "Daviplata", "Tarjeta"];
@@ -38,7 +38,7 @@ export default async function render(root, ctx) {
   let datos = [];
   const filtros = { q: "", semana: "", dia: "", grupo: "", pago: "", vista: "tabla", orden: "semana" };
   async function cargar() {
-    datos = await listar(ctx.temporadaId, "inscripciones");
+    datos = (await listar(ctx.temporadaId, "inscripciones")).map((d) => ({ ...d, grupo: nombreGrupo(d.grupo) }));
     await Promise.all(datos.map(async (d) => {
       d.pagos = await listarPagos(ctx.temporadaId, d.id);
       d.pagosCargados = true;
