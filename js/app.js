@@ -13,6 +13,7 @@ import ruta from "./modules/ruta.js?v=4";
 import materiales from "./modules/materiales.js?v=4";
 import musipuntos from "./modules/musipuntos.js?v=4";
 import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=5";
+import cotizador from "./modules/cotizador.js?v=5";
 import { conectarConCredencial } from "./base-general.js?v=4";
 import { leerConfig } from "./db.js?v=5";
 import { migrarNombresGrupos } from "./migraciones.js?v=1";
@@ -28,6 +29,7 @@ const MODULOS = [
   { id: "materiales",    nombre: "Materiales",     icono: "📦", render: materiales },
   { id: "musipuntos",    nombre: "Musipuntos",     icono: "⭐", render: musipuntos },
   { id: "temporada",     nombre: "Info temporada", icono: "📅", render: temporadaInfo },
+  { id: "cotizador",     nombre: "Cotizador",      icono: "🧮", render: cotizador },
   { id: "estadisticas",  nombre: "Estadísticas",   icono: "📈", render: estadisticas },
 ];
 

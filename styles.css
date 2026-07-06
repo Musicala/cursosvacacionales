@@ -258,6 +258,27 @@ label.check input,.checks .check input{width:auto}
 .block-label textarea{width:100%;margin-top:.25rem}
 .nota-texto{white-space:pre-wrap;background:#faf8ff;border:1px solid var(--line);border-radius:9px;padding:.7rem .9rem;line-height:1.5}
 
+/* ---- Cotizador ---- */
+.cotz-controles{margin-bottom:1rem}
+.cotz-est-list{display:flex;flex-direction:column;gap:.4rem;margin:.4rem 0}
+.cotz-est-row{display:grid;grid-template-columns:130px 1fr;gap:.5rem;align-items:start}
+.cotz-est-row .sem-label{font-weight:600;padding-top:.15rem}
+.cotz-semanas{gap:.3rem .9rem}
+.cotz-est-sub{margin:-.3rem 0 .5rem}
+.cotz-unitario{margin-top:.4rem;font-style:italic}
+.cotz-desglose{display:flex;flex-direction:column;gap:.8rem}
+.cotz-est-card{background:#faf8ff;border:1px solid var(--line);border-radius:11px;padding:.8rem 1rem}
+.cotz-est-card h4{margin:0 0 .5rem}
+.cotz-lineas{display:flex;flex-direction:column;gap:.25rem}
+.cotz-linea{display:flex;justify-content:space-between;gap:1rem}
+.cotz-linea.desc{color:#c0392b}
+.cotz-linea.sub{border-top:1px solid var(--line);margin-top:.3rem;padding-top:.3rem;font-weight:700}
+.cotz-total{margin-top:1rem;border-top:2px solid var(--line);padding-top:.8rem;display:flex;flex-direction:column;gap:.3rem}
+.cotz-total-linea{display:flex;justify-content:space-between;gap:1rem}
+.cotz-total-linea.desc{color:#c0392b}
+.cotz-total-linea.grande{font-size:1.35rem;color:var(--brand,#6b3ff0)}
+.cotz-total-linea.grande strong{font-size:1.5rem}
+
 /* ---- Estadísticas: barras y fila activa ---- */
 .table tr.fila-activa td{background:#f3effd}
 .bar-row{display:grid;grid-template-columns:140px 1fr 40px;gap:.6rem;align-items:center;margin:.35rem 0}

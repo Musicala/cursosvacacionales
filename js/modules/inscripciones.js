@@ -459,7 +459,7 @@ function horasDesdeConcepto(concepto) {
   return m ? Number(m[1]) : 0;
 }
 
-function calcularPrecio({ semanas, detalleSemanas, precios, descuentosLista, descuentoIds }) {
+export function calcularPrecio({ semanas, detalleSemanas, precios, descuentosLista, descuentoIds }) {
   const seleccion = new Set(semanas || []);
   const dias = (detalleSemanas || []).reduce((sum, s) => {
     if (!seleccion.has(s.nombre)) return sum;

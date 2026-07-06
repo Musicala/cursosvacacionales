@@ -20,4 +20,5 @@ export const CORREOS_PERMITIDOS = [
   "imusicala@gmail.com",
   "catalina.medina.leal@gmail.com",
   "alekcaballeromusic@gmail.com",
+  "adminmusicala@gmail.com",
 ];
