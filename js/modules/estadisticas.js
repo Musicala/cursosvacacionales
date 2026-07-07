@@ -1,7 +1,7 @@
 // Módulo Estadísticas: compara todas las temporadas (inscritos, ingresos, recaudo…).
 import { el, cop, fmtCorta } from "../ui.js?v=3";
 import { listarTemporadas, listar, listarPagos } from "../db.js?v=5";
-import { totalPagado } from "../pagos.js?v=1";
+import { totalPagado, estadoPagoCalculado } from "../pagos.js?v=1";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" }, el("h2", {}, "📈 Estadísticas")));
@@ -26,9 +26,14 @@ export default async function render(root, ctx) {
     const recaudado = ins.reduce((s, d) => s + totalPagado(d), 0);
     const conRuta = ins.filter((d) => d.ruta).length;
     const musicafe = caf.reduce((s, d) => s + (Number(d.total) || 0), 0);
+    // Desglose por estado de pago.
+    const pagados = ins.filter((d) => estadoPagoCalculado(d) === "Pagado").length;
+    const abonos = ins.filter((d) => estadoPagoCalculado(d) === "Abono").length;
+    const pendientes = ins.filter((d) => estadoPagoCalculado(d) === "Pendiente").length;
     return {
       t, inscritos: ins.length, ingresos, recaudado, porCobrar: ingresos - recaudado,
       promedio: ins.length ? Math.round(ingresos / ins.length) : 0, conRuta, musicafe,
+      pagados, abonos, pendientes,
     };
   }));
 
@@ -47,6 +52,20 @@ export default async function render(root, ctx) {
     stat("Recaudado (histórico)", cop(tot.recaudado), "ok"),
   ));
 
+  // ----- Temporada actual: inscritos y estado de pago -----
+  const actual = datos.find((d) => d.t.id === ctx.temporadaId) || datos[0];
+  if (actual) {
+    const pActual = el("div", { class: "panel" });
+    pActual.append(el("h3", {}, `Temporada actual · ${actual.t.nombre || actual.t.id}`));
+    pActual.append(el("div", { class: "cards-row" },
+      stat("Inscritos", actual.inscritos),
+      stat("Pagados", actual.pagados, "ok"),
+      stat("Con abono", actual.abonos),
+      stat("Pendientes", actual.pendientes, actual.pendientes ? "warn" : ""),
+    ));
+    cont.append(pActual);
+  }
+
   // ----- Tabla comparativa -----
   const panel = el("div", { class: "panel" });
   panel.append(el("h3", {}, "Comparativo por temporada"));
@@ -59,6 +78,8 @@ export default async function render(root, ctx) {
       el("td", {}, el("strong", {}, d.t.nombre || d.t.id)),
       el("td", {}, rango),
       el("td", {}, String(d.inscritos)),
+      el("td", {}, String(d.pagados)),
+      el("td", {}, String(d.pendientes)),
       el("td", {}, cop(d.ingresos)),
       el("td", {}, cop(d.recaudado)),
       el("td", {}, cop(d.porCobrar)),
@@ -69,7 +90,7 @@ export default async function render(root, ctx) {
   });
   panel.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
     el("thead", {}, el("tr", {},
-      ...["Temporada", "Fechas", "Inscritos", "Ingresos", "Recaudado", "Por cobrar", "Valor promedio", "Con ruta", "Musicafé"].map((h) => el("th", {}, h)))),
+      ...["Temporada", "Fechas", "Inscritos", "Pagados", "Pendientes", "Ingresos", "Recaudado", "Por cobrar", "Valor promedio", "Con ruta", "Musicafé"].map((h) => el("th", {}, h)))),
     tb)));
   cont.append(panel);
 
