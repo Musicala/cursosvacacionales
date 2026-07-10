@@ -125,7 +125,15 @@ function crearControlesInscripciones(datos, filtros, ctx, onChange) {
 
   const buscar = el("input", { type: "search", placeholder: "Buscar estudiante, acudiente, celular o direccion" });
   buscar.value = filtros.q;
-  buscar.addEventListener("input", () => { filtros.q = buscar.value; onChange(); });
+  buscar.addEventListener("input", () => { filtros.q = buscar.value; filtros._focusBuscar = true; onChange(); });
+  if (filtros._focusBuscar) {
+    filtros._focusBuscar = false;
+    setTimeout(() => {
+      buscar.focus();
+      const n = buscar.value.length;
+      try { buscar.setSelectionRange(n, n); } catch (_) {}
+    }, 0);
+  }
 
   const semanaSel = selected(el("select", { onchange: (e) => set("semana", e.target.value) },
     opt("", "Todas las semanas"),
