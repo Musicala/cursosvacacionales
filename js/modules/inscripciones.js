@@ -3,6 +3,8 @@ import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js?v=3
 import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas, listarPagos, crearPago, eliminarPago } from "../db.js?v=5";
 import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, nombreGrupo, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=5";
 import { totalPagado, saldoInscripcion, estadoPagoCalculado, valoresPorSemana, pagosPorSemana } from "../pagos.js?v=1";
+import { MUSICAFE_CATEGORIAS } from "../catalogos.js?v=5";
+import { NIVELES, LIBRE, RESTRINGIDO, VETADO, permisoDe, badgePermiso } from "../musicafe-permisos.js?v=1";
 
 const MEDIOS_PAGO_DEFAULT = ["Efectivo", "Transferencia bancaria", "Nequi", "Daviplata", "Tarjeta"];
 
@@ -255,7 +257,7 @@ function vistaTabla(datos, ctx, onSave) {
   const tb = el("tbody", {});
   datos.forEach((d) => {
     tb.append(el("tr", {},
-      el("td", {}, el("strong", {}, d.estudiante || "-"), d.acudiente ? el("div", { class: "muted small" }, d.acudiente) : null),
+      el("td", {}, el("strong", {}, d.estudiante || "-"), d.acudiente ? el("div", { class: "muted small" }, d.acudiente) : null, badgePermiso(permisoDe(d))),
       el("td", {}, d.edad ?? ""),
       el("td", {}, d.grupo || ""),
       el("td", {}, (d.semanas || []).join(", ")),
@@ -275,7 +277,7 @@ function vistaTabla(datos, ctx, onSave) {
 function vistaTarjetas(datos, ctx, onSave) {
   return el("div", { class: "insc-card-grid" }, datos.map((d) => el("article", { class: "insc-card" },
     el("div", { class: "insc-card-head" },
-      el("div", {}, el("h3", {}, d.estudiante || "-"), el("div", { class: "muted small" }, [d.edad ? `${d.edad} anos` : "", d.grupo || ""].filter(Boolean).join(" · "))),
+      el("div", {}, el("h3", {}, d.estudiante || "-"), el("div", { class: "muted small" }, [d.edad ? `${d.edad} anos` : "", d.grupo || ""].filter(Boolean).join(" · ")), badgePermiso(permisoDe(d))),
       resumenPago(d),
     ),
     resumenDias(d, ctx),
@@ -638,6 +640,44 @@ function editar(ctx, dato, onSave) {
   buscador.addEventListener("input", () => pintarLista(buscador.value));
   buscador.addEventListener("blur", () => setTimeout(() => (lista.style.display = "none"), 150));
 
+  // --- Permiso del Musicafé (solo coordinación lo puede cambiar; docentes lo ven bloqueado) ---
+  const permisoActual = permisoDe(d);
+  const soloLectura = ctx.rol === "docente";
+  const selPermiso = el("select", {}, ...NIVELES.map((n) => {
+    const o = el("option", { value: n.id }, n.etiqueta);
+    if (n.id === permisoActual.nivel) o.selected = true;
+    return o;
+  }));
+  const catsWrap = el("div", { class: "chips-input" }, ...MUSICAFE_CATEGORIAS.map((c) => {
+    const chk = el("input", { type: "checkbox", value: c });
+    chk.checked = permisoActual.categorias.includes(c);
+    return el("label", { class: "chk" }, chk, " " + c);
+  }));
+  const notaPermiso = el("input", { type: "text", placeholder: "Ej: solo agua, trae almuerzo en la lonchera" });
+  notaPermiso.value = permisoActual.nota;
+  const catsLabel = el("label", { class: "full" }, "Categorías que sí puede comprar", catsWrap);
+  const notaLabel = el("label", { class: "full" }, "Nota del acudiente (la ve el profe al registrar el consumo)", notaPermiso);
+  function refrescarPermiso() {
+    catsLabel.style.display = selPermiso.value === RESTRINGIDO ? "" : "none";
+    notaLabel.style.display = selPermiso.value === LIBRE ? "none" : "";
+  }
+  selPermiso.onchange = refrescarPermiso;
+  refrescarPermiso();
+  if (soloLectura) {
+    selPermiso.disabled = true;
+    notaPermiso.disabled = true;
+    catsWrap.querySelectorAll("input").forEach((c) => (c.disabled = true));
+    selPermiso.title = "Solo coordinación puede cambiar el permiso del Musicafé";
+  }
+  function permisoPayload() {
+    const nivel = selPermiso.value;
+    return {
+      musicafePermiso: nivel,
+      musicafeCategorias: nivel === RESTRINGIDO ? [...catsWrap.querySelectorAll("input:checked")].map((c) => c.value) : [],
+      musicafeNota: nivel === LIBRE ? "" : notaPermiso.value.trim(),
+    };
+  }
+
   const grid = el("div", { class: "form-grid" },
     el("label", { class: "full" }, "Temporada", selTemporada),
     dato ? null : el("label", { class: "full" }, "Inscribir desde contacto", selContacto),
@@ -662,6 +702,10 @@ function editar(ctx, dato, onSave) {
     el("label", { class: "full" }, "Dirección / barrio para ruta", inp("direccion", { ph: "Dirección, barrio o punto de recogida" })),
     descuentosDisponibles.length ? el("label", { class: "full" }, "Descuentos aplicados", descuentosWrap) : null,
     el("label", { class: "full" }, "Observaciones", inp("observaciones", { ph: "Notas del pago, acuerdos…" })),
+    el("h4", { class: "full" }, "🍪 Permiso del Musicafé"),
+    el("label", { class: "full" }, "¿Puede comprar en el Musicafé?", selPermiso),
+    catsLabel,
+    notaLabel,
   );
   f.estadoPago.disabled = Boolean(dato);
   if (dato) f.estadoPago.title = "Se calcula automáticamente según los abonos registrados";
@@ -738,6 +782,7 @@ function editar(ctx, dato, onSave) {
         paqueteCalculado: calc.paquete,
         semanas: semanasSeleccionadas(),
         diasPorSemana: diasPorSemanaSeleccionados(),
+        ...permisoPayload(),
       };
       if (!payload.estudiante) { toast("Falta el nombre del estudiante", "error"); return; }
       const destino = selTemporada.value || ctx.temporadaId;

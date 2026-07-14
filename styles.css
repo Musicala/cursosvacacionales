@@ -333,7 +333,18 @@ label.check input,.checks .check input{width:auto}
 .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.78rem;font-weight:600;line-height:1.4}
 .badge.ok{background:#d8f5e0;color:#177245}
 .badge.pend{background:#fdeccd;color:#9a6700}
+.badge.veto{background:#fbdcdc;color:#a01919}
+.badge.warn{background:#fdeccd;color:#9a6700}
 tr.saldada td{opacity:.6}
+
+/* Permiso del Musicafé: aviso al registrar el consumo y productos bloqueados */
+.permiso-aviso{display:flex;flex-direction:column;align-items:flex-start;gap:.35rem;
+  margin:.8rem 0;padding:.7rem .9rem;border-radius:10px;border:2px solid transparent}
+.permiso-aviso.veto{background:#fbdcdc;border-color:#a01919;color:#7d1414}
+.permiso-aviso.warn{background:#fdeccd;border-color:#c98a00;color:#7a5200}
+.permiso-aviso.ok{background:#d8f5e0;border-color:#177245;color:#125c37}
+.prod-row.bloqueado{opacity:.45;background:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(0,0,0,.04) 6px,rgba(0,0,0,.04) 12px)}
+.prod-row.bloqueado .qty{cursor:not-allowed}
 
 /* Libro de pagos de inscripciones */
 .payment-summary{display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;min-width:125px}

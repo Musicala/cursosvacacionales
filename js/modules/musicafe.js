@@ -2,6 +2,7 @@
 import { el, cop, toast, modal, confirmar, hoyISO } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
 import { MUSICAFE_PRODUCTOS, MUSICAFE_CATEGORIAS } from "../catalogos.js?v=3";
+import { LIBRE, VETADO, permisoDe, puedeCategoria } from "../musicafe-permisos.js?v=1";
 
 let PRECIOS = MUSICAFE_PRODUCTOS;
 
@@ -54,7 +55,9 @@ export default async function render(root, ctx) {
     else {
       const tb = el("tbody", {});
       delDia.forEach((d) => tb.append(el("tr", {},
-        el("td", {}, d.estudiante),
+        el("td", {}, d.estudiante, d.excepcion
+          ? el("div", { class: "badge warn", title: `Autorizó: ${d.excepcion.autorizadoPor} · ${d.excepcion.motivo}` }, "⚠️ Con excepción")
+          : null),
         el("td", {}, (d.productos || []).map((p) => p.nombre).join(", ")),
         el("td", {}, cop(d.total)),
         el("td", {}, d.pagado
@@ -112,25 +115,35 @@ export default async function render(root, ctx) {
 
 async function registrar(ctx, onSave) {
   const fecha = el("input", { type: "date", value: hoyISO() });
-  const inscritos = (await listar(ctx.temporadaId, "inscripciones"))
-    .map((i) => (i.estudiante || "").trim())
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
-  const nombres = [...new Set(inscritos)];
+  const inscripciones = await listar(ctx.temporadaId, "inscripciones");
+  // Un permiso por nombre de estudiante (es la llave con la que se registran los consumos).
+  const porNombre = new Map();
+  inscripciones.forEach((i) => {
+    const n = (i.estudiante || "").trim();
+    if (n && !porNombre.has(n)) porNombre.set(n, i);
+  });
+  const nombres = [...porNombre.keys()].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
   const est = nombres.length
     ? el("select", {},
       el("option", { value: "" }, "Selecciona un estudiante"),
       ...nombres.map((nombre) => el("option", { value: nombre }, nombre)))
     : el("input", { type: "text", placeholder: "Nombre del estudiante" });
+
+  // Excepción puntual: solo se activa si coordinación autoriza y queda registrada en el consumo.
+  let excepcion = null;
+  const aviso = el("div", { class: "permiso-aviso" });
+
   const lista = el("div", { class: "prod-list" });
   porCategoria(PRECIOS).forEach((g) => {
     lista.append(el("div", { class: "prod-cat" }, g.categoria));
     g.items.forEach((p) => {
       const qty = el("input", { type: "number", min: "0", value: "0", class: "qty" });
-      qty.dataset.nombre = p.nombre; qty.dataset.precio = p.precio;
+      qty.dataset.nombre = p.nombre; qty.dataset.precio = p.precio; qty.dataset.categoria = g.categoria;
       qty.oninput = recalc;
-      lista.append(el("div", { class: "prod-row" },
-        el("span", {}, p.nombre), el("span", { class: "muted" }, cop(p.precio)), qty));
+      const fila = el("div", { class: "prod-row" },
+        el("span", {}, p.nombre), el("span", { class: "muted" }, cop(p.precio)), qty);
+      fila.dataset.categoria = g.categoria;
+      lista.append(fila);
     });
   });
   const totalLbl = el("strong", {}, cop(0));
@@ -139,10 +152,84 @@ async function registrar(ctx, onSave) {
     lista.querySelectorAll(".qty").forEach((q) => t += (Number(q.value) || 0) * Number(q.dataset.precio));
     totalLbl.textContent = cop(t);
   }
+
+  function permisoActual() {
+    return permisoDe(porNombre.get(est.value));
+  }
+
+  // Pinta el aviso y bloquea los productos que el estudiante no puede llevar.
+  function refrescarPermiso() {
+    const p = permisoActual();
+    aviso.innerHTML = "";
+    aviso.className = "permiso-aviso";
+    lista.querySelectorAll(".prod-row").forEach((fila) => {
+      const permitido = excepcion ? true : puedeCategoria(p, fila.dataset.categoria);
+      fila.classList.toggle("bloqueado", !permitido);
+      const qty = fila.querySelector(".qty");
+      qty.disabled = !permitido;
+      if (!permitido) { qty.value = "0"; }
+    });
+    recalc();
+
+    if (!est.value || (p.nivel === LIBRE && !excepcion)) { aviso.style.display = "none"; return; }
+    aviso.style.display = "";
+
+    if (excepcion) {
+      aviso.classList.add("ok");
+      aviso.append(
+        el("strong", {}, "✔️ Excepción autorizada por hoy"),
+        el("div", { class: "small" }, `Autoriza: ${excepcion.autorizadoPor} · ${excepcion.motivo}`),
+        el("button", { class: "btn ghost small", onclick: () => { excepcion = null; refrescarPermiso(); } }, "Quitar excepción"),
+      );
+      return;
+    }
+    if (p.nivel === VETADO) {
+      aviso.classList.add("veto");
+      aviso.append(
+        el("strong", {}, "🚫 Este estudiante NO puede comprar en el Musicafé"),
+        p.nota ? el("div", { class: "small" }, p.nota) : null,
+        el("div", { class: "small" }, "Si el niño dice que le dieron permiso, confírmalo con coordinación o con el acudiente antes de venderle."),
+        el("button", { class: "btn ghost small", onclick: () => pedirExcepcion() }, "Autorizar solo por hoy…"),
+      );
+      return;
+    }
+    aviso.classList.add("warn");
+    aviso.append(
+      el("strong", {}, "⚠️ Compra restringida"),
+      el("div", { class: "small" }, p.categorias.length
+        ? "Solo puede llevar: " + p.categorias.join(", ")
+        : "No tiene ninguna categoría autorizada."),
+      p.nota ? el("div", { class: "small" }, p.nota) : null,
+      el("button", { class: "btn ghost small", onclick: () => pedirExcepcion() }, "Autorizar solo por hoy…"),
+    );
+  }
+
+  // Levanta la restricción para este consumo, dejando constancia de quién autorizó y por qué.
+  function pedirExcepcion() {
+    const quien = el("input", { type: "text", placeholder: "Nombre de quien autoriza" });
+    const motivo = el("input", { type: "text", placeholder: "Ej: la mamá llamó y autorizó" });
+    modal("Autorizar excepción por hoy", el("div", { class: "form-grid" },
+      el("div", { class: "muted small full" }, "Queda guardado en el consumo. No basta con que el niño diga que le dieron permiso: confírmalo con el acudiente o con coordinación."),
+      el("label", { class: "full" }, "¿Quién autoriza?", quien),
+      el("label", { class: "full" }, "Motivo", motivo),
+    ), [
+      { texto: "Cancelar", clase: "ghost" },
+      { texto: "Autorizar", clase: "primary", onClick: (dlg) => {
+        if (!quien.value.trim() || !motivo.value.trim()) { toast("Escribe quién autoriza y el motivo", "error"); return; }
+        excepcion = { autorizadoPor: quien.value.trim(), motivo: motivo.value.trim() };
+        dlg.close(); refrescarPermiso();
+      } },
+    ]);
+  }
+
+  est.onchange = () => { excepcion = null; refrescarPermiso(); };
+  refrescarPermiso();
+
   const body = el("div", {},
     el("div", { class: "form-grid" },
       el("label", {}, "Fecha", fecha),
       el("label", {}, "Estudiante", est)),
+    aviso,
     el("h4", {}, "Productos"), lista,
     el("div", { class: "total-line" }, "Total del día: ", totalLbl),
   );
@@ -150,13 +237,26 @@ async function registrar(ctx, onSave) {
     { texto: "Cancelar", clase: "ghost" },
     { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
       if (!est.value.trim()) { toast("Falta el estudiante", "error"); return; }
+      const p = permisoActual();
+      if (p.nivel === VETADO && !excepcion) {
+        toast("Este estudiante no está autorizado a comprar en el Musicafé", "error"); return;
+      }
       const productos = []; let total = 0;
       lista.querySelectorAll(".qty").forEach((q) => {
         const c = Number(q.value) || 0;
-        if (c > 0) { productos.push({ nombre: q.dataset.nombre, cantidad: c, precio: Number(q.dataset.precio) }); total += c * Number(q.dataset.precio); }
+        if (c > 0) { productos.push({ nombre: q.dataset.nombre, cantidad: c, precio: Number(q.dataset.precio), categoria: q.dataset.categoria }); total += c * Number(q.dataset.precio); }
       });
       if (!productos.length) { toast("Marca al menos un producto", "error"); return; }
-      await crear(ctx.temporadaId, "musicafe", { fecha: fecha.value, estudiante: est.value.trim(), productos, total });
+      // Segunda barrera: aunque alguien reactive el campo desde el navegador, aquí no pasa.
+      if (!excepcion) {
+        const prohibido = productos.find((x) => !puedeCategoria(p, x.categoria));
+        if (prohibido) { toast(`No está autorizado a llevar "${prohibido.nombre}"`, "error"); return; }
+      }
+      await crear(ctx.temporadaId, "musicafe", {
+        fecha: fecha.value, estudiante: est.value.trim(), productos, total,
+        permisoNivel: p.nivel,
+        excepcion: excepcion ? { ...excepcion, fecha: hoyISO() } : null,
+      });
       dlg.close(); toast("Consumo registrado"); onSave && onSave();
     } },
   ]);
