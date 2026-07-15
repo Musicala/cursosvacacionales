@@ -190,10 +190,18 @@ function resumenGestionHoy(contactos) {
 
 function registrarGestion(ctx, contacto, onSave) {
   const respuesta = el("textarea", { rows: "3", placeholder: "Ej. Dijo que le interesa, pidio precios o no contesto" });
+  const estado = el("select", {});
+  ESTADOS_CONTACTO.forEach((opcion) => {
+    const op = el("option", { value: opcion }, opcion);
+    if (opcion === contacto.estado) op.selected = true;
+    estado.append(op);
+  });
   const historial = (Array.isArray(contacto.seguimientos) ? contacto.seguimientos : []).slice().reverse().slice(0, 8);
   const contenido = el("div", { class: "form-grid" },
     el("div", { class: "full muted small" }, `Registra que contactaste a ${contacto.estudiante || contacto.acudiente || "este contacto"}. La fecha y hora se guardan automaticamente.`),
     el("label", { class: "full" }, "Que dijo el contacto", respuesta),
+    el("div", {}, el("label", {}, "Actualizar estado", estado),
+      el("button", { type: "button", class: "btn ghost small", onclick: mostrarAyudaEstados }, "? Estados")),
     el("div", { class: "full" }, el("strong", {}, "Contactos anteriores"),
       historial.length
         ? el("div", { class: "muted small" }, historial.map((g) => `${[g.fecha, g.hora].filter(Boolean).join(" ")} - ${g.resultado || ""}`).join("\n"))
@@ -211,7 +219,7 @@ function registrarGestion(ctx, contacto, onSave) {
       const seguimientos = Array.isArray(contacto.seguimientos) ? contacto.seguimientos : [];
       try {
         await actualizar(ctx.temporadaId, "contactos", contacto.id, {
-          seguimientos: [...seguimientos, gestion], ultimaGestion: gestion,
+          estado: estado.value, seguimientos: [...seguimientos, gestion], ultimaGestion: gestion,
         });
         dlg.close(); toast("Contacto registrado"); onSave && onSave();
       } catch (e) { toast("Error: " + e.message, "error"); }
