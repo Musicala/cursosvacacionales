@@ -94,6 +94,7 @@ export default async function render(root, ctx) {
       return true;
     });
     cont.innerHTML = "";
+    cont.append(resumenGestionHoy(datos));
     cont.append(el("div", { class: "muted small" }, `${filas.length} contacto(s)`));
     if (!filas.length) {
       cont.append(el("div", { class: "empty" }, "Sin contactos. Crea el primero con “+ Nuevo contacto”."));
@@ -103,6 +104,8 @@ export default async function render(root, ctx) {
       el("thead", {}, el("tr", {},
         ...["Estudiante", "Edad", "Acudiente", "Celular", "Estado", "Semana(s)", "Ruta", "Dirección", "Origen", ""].map((h) => el("th", {}, h)))),
     );
+    const filaEncabezado = tabla.querySelector("thead tr");
+    filaEncabezado.insertBefore(el("th", {}, "Ultima gestion"), filaEncabezado.children[5]);
     const tb = el("tbody", {});
     filas.forEach((d) => {
       tb.append(el("tr", {},
@@ -111,11 +114,13 @@ export default async function render(root, ctx) {
         el("td", {}, d.acudiente || ""),
         el("td", {}, d.celular || ""),
         el("td", {}, el("span", { class: "pill estado-" + slug(d.estado) }, d.estado || "—")),
+        el("td", {}, celdaUltimaGestion(d)),
         el("td", {}, (d.semanas || []).join(", ")),
         el("td", {}, d.ruta ? el("span", { class: "pill", title: "Requiere ruta" }, "🚌 Sí") : ""),
         el("td", {}, d.direccion || ""),
         el("td", {}, d.origen || ""),
         el("td", { class: "row-actions" },
+          el("button", { class: "btn small", onclick: () => registrarGestion(ctx, d, cargar) }, "Seguimiento"),
           el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
           el("button", { class: "btn ghost small", onclick: () => eliminarC(ctx, d, cargar) }, "🗑"),
         ),
@@ -130,6 +135,106 @@ export default async function render(root, ctx) {
 }
 
 function slug(s) { return (s || "").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, ""); }
+
+function fechaLocalISO() {
+  const ahora = new Date();
+  const zona = ahora.getTimezoneOffset() * 60000;
+  return new Date(ahora.getTime() - zona).toISOString().slice(0, 10);
+}
+
+function celdaUltimaGestion(contacto) {
+  const ultima = contacto.ultimaGestion;
+  if (!ultima) return el("span", { class: "muted small" }, "Sin registrar");
+  return el("div", { class: "small" },
+    el("strong", {}, ultima.fecha || ""),
+    el("div", { class: "muted" }, `${ultima.tipo || "GestiÃ³n"} · ${ultima.responsableNombre || ultima.responsableEmail || ""}`),
+    ultima.resultado ? el("div", { class: "muted" }, ultima.resultado) : null,
+  );
+}
+
+function resumenGestionHoy(contactos) {
+  const hoy = fechaLocalISO();
+  const gestiones = contactos.flatMap((c) => Array.isArray(c.seguimientos) ? c.seguimientos : [])
+    .filter((g) => g.fecha === hoy);
+  const porResponsable = gestiones.reduce((acc, g) => {
+    const nombre = g.responsableNombre || g.responsableEmail || "Sin identificar";
+    acc[nombre] = (acc[nombre] || 0) + 1;
+    return acc;
+  }, {});
+  const detalle = Object.entries(porResponsable)
+    .sort((a, b) => b[1] - a[1])
+    .map(([nombre, cantidad]) => `${nombre}: ${cantidad}`)
+    .join(" · ");
+  return el("div", { class: "panel bg-aviso" },
+    el("strong", {}, "SupervisiÃ³n de hoy"),
+    el("div", { class: "muted small" }, gestiones.length
+      ? `${gestiones.length} seguimiento(s) registrado(s). ${detalle}`
+      : "AÃºn no hay seguimientos registrados hoy."),
+  );
+}
+
+function registrarGestion(ctx, contacto, onSave) {
+  const hoy = fechaLocalISO();
+  const fecha = el("input", { type: "date", value: hoy });
+  const tipo = el("select", {});
+  ["Llamada", "WhatsApp", "Mensaje", "Correo", "ReuniÃ³n", "Otro"].forEach((opcion) =>
+    tipo.append(el("option", { value: opcion }, opcion)));
+  const resultado = el("input", { type: "text", placeholder: "Ej. PidiÃ³ precios, no contestÃ³, quiere inscribirse" });
+  const nota = el("textarea", { rows: "3", placeholder: "Detalle de lo conversado y prÃ³ximo paso" });
+  const estado = el("select", {});
+  ESTADOS_CONTACTO.forEach((opcion) => {
+    const op = el("option", { value: opcion }, opcion);
+    if (opcion === contacto.estado) op.selected = true;
+    estado.append(op);
+  });
+  const historial = (Array.isArray(contacto.seguimientos) ? contacto.seguimientos : [])
+    .slice().reverse().slice(0, 10);
+  const historialEl = el("div", { class: "full" },
+    el("strong", {}, "Historial reciente"),
+    historial.length
+      ? el("div", { class: "muted small" }, historial.map((g) =>
+        `${g.fecha || ""} · ${g.responsableNombre || g.responsableEmail || ""} · ${g.tipo || "GestiÃ³n"}: ${g.resultado || g.nota || ""}`).join("\n"))
+      : el("div", { class: "muted small" }, "Este contacto todavÃ­a no tiene gestiones registradas."),
+  );
+  const contenido = el("div", { class: "form-grid" },
+    el("div", { class: "full muted small" }, `Registrar gestiÃ³n para ${contacto.estudiante || contacto.acudiente || "este contacto"}. QuedarÃ¡ identificada con tu usuario.`),
+    el("label", {}, "Fecha", fecha),
+    el("label", {}, "Medio", tipo),
+    el("label", { class: "full" }, "Resultado", resultado),
+    el("label", {}, "Estado despuÃ©s del contacto", estado),
+    el("label", { class: "full" }, "Nota / prÃ³ximo paso", nota),
+    historialEl,
+  );
+  modal("Actualizar seguimiento", contenido, [
+    { texto: "Cancelar", clase: "ghost" },
+    { texto: "Guardar seguimiento", clase: "primary", onClick: async (dlg) => {
+      if (!resultado.value.trim() && !nota.value.trim()) {
+        toast("Escribe el resultado o una nota de la gestiÃ³n", "error");
+        return;
+      }
+      const gestion = {
+        fecha: fecha.value || hoy,
+        tipo: tipo.value,
+        resultado: resultado.value.trim(),
+        nota: nota.value.trim(),
+        responsableEmail: ctx.usuario?.email || "",
+        responsableNombre: ctx.usuario?.displayName || ctx.usuario?.email || "",
+        registradaEn: new Date().toISOString(),
+      };
+      const seguimientos = Array.isArray(contacto.seguimientos) ? contacto.seguimientos : [];
+      try {
+        await actualizar(ctx.temporadaId, "contactos", contacto.id, {
+          estado: estado.value,
+          seguimientos: [...seguimientos, gestion],
+          ultimaGestion: gestion,
+        });
+        dlg.close();
+        toast("Seguimiento registrado");
+        onSave && onSave();
+      } catch (e) { toast("Error: " + e.message, "error"); }
+    } },
+  ]);
+}
 
 function editar(ctx, dato, onSave) {
   const d = dato || {};

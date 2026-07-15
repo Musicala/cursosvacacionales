@@ -4,7 +4,7 @@ import { listarTemporadas, crearTemporada } from "./db.js?v=5";
 
 import dashboard from "./modules/dashboard.js?v=7";
 import estadisticas from "./modules/estadisticas.js?v=6";
-import contactos from "./modules/contactos.js?v=6";
+import contactos from "./modules/contactos.js?v=7";
 import inscripciones from "./modules/inscripciones.js?v=7";
 import horarios from "./modules/horarios.js?v=8";
 import asistencia from "./modules/asistencia.js?v=6";
