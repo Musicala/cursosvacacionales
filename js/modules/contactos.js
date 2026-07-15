@@ -23,7 +23,8 @@ export default async function render(root, ctx) {
   ESTADOS_CONTACTO.forEach((s) => fEstado.append(el("option", { value: s }, s)));
   const fQ = el("input", { type: "text", placeholder: "Buscar nombre, acudiente, celular…" });
   filtros.append(
-    el("label", {}, "Estado", fEstado),
+    el("label", {}, "Estado", fEstado,
+      el("button", { type: "button", class: "btn ghost small", onclick: mostrarAyudaEstados }, "? Estados")),
     el("label", { class: "grow" }, "Búsqueda", fQ),
   );
   root.append(el("div", { class: "panel" }, filtros));
@@ -138,6 +139,15 @@ export default async function render(root, ctx) {
 
 function slug(s) { return (s || "").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, ""); }
 
+function mostrarAyudaEstados() {
+  const contenido = el("div", {},
+    el("p", {}, el("strong", {}, "Contactado: "), "se envio informacion, pero aun no responde."),
+    el("p", {}, el("strong", {}, "En seguimiento: "), "respondio parcialmente y sigue evaluando la opcion."),
+    el("p", {}, el("strong", {}, "Interesado: "), "dice que quiere asistir en una semana o fecha especifica."),
+  );
+  modal("Que significa cada estado", contenido, [{ texto: "Entendido", clase: "primary" }]);
+}
+
 function fechaHoraActual() {
   const ahora = new Date();
   const zona = ahora.getTimezoneOffset() * 60000;
@@ -247,6 +257,10 @@ function editar(ctx, dato, onSave) {
     const valor = desc.tipo === "valor" ? `$${Number(desc.valor || 0).toLocaleString("es-CO")}` : `${Number(desc.valor) || 0}%`;
     descuentosWrap.append(el("label", { class: "chk" }, chk, `${id} (${valor})`));
   });
+  const estadoConAyuda = el("div", {},
+    campo("estado", "Estado", { tag: "select", opciones: ESTADOS_CONTACTO }),
+    el("button", { type: "button", class: "btn ghost small", onclick: mostrarAyudaEstados }, "? Que significa cada estado"),
+  );
 
   const grid = el("div", { class: "form-grid" },
     campo("estudiante", "Estudiante", { ph: "Nombre del niño/a" }),
@@ -255,7 +269,7 @@ function editar(ctx, dato, onSave) {
     campo("celular", "Celular", { ph: "+57…" }),
     campo("correo", "Correo", {}),
     campo("grupo", "Grupo", { tag: "select", opciones: ["", ...GRUPOS.map((g) => g.nombre)] }),
-    campo("estado", "Estado", { tag: "select", opciones: ESTADOS_CONTACTO }),
+    estadoConAyuda,
     campo("calendario", "Calendario", { tag: "select", opciones: ["", "Calendario A", "Calendario B"] }),
     campo("origen", "Origen", { tag: "select", opciones: ["", "WhatsApp", "Instagram", "Facebook", "Referido", "Antiguo", "Otro"] }),
     el("label", { class: "full" }, "Semanas de interés", semanas),
