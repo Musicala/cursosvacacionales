@@ -106,6 +106,7 @@ export default async function render(root, ctx) {
     );
     const filaEncabezado = tabla.querySelector("thead tr");
     filaEncabezado.insertBefore(el("th", {}, "Ultima gestion"), filaEncabezado.children[5]);
+    filaEncabezado.insertBefore(el("th", {}, "Calendario"), filaEncabezado.children[6]);
     const tb = el("tbody", {});
     filas.forEach((d) => {
       tb.append(el("tr", {},
@@ -115,6 +116,7 @@ export default async function render(root, ctx) {
         el("td", {}, d.celular || ""),
         el("td", {}, el("span", { class: "pill estado-" + slug(d.estado) }, d.estado || "—")),
         el("td", {}, celdaUltimaGestion(d)),
+        el("td", {}, d.calendario ? el("span", { class: "pill" }, d.calendario) : el("span", { class: "muted small" }, "â€”")),
         el("td", {}, (d.semanas || []).join(", ")),
         el("td", {}, d.ruta ? el("span", { class: "pill", title: "Requiere ruta" }, "🚌 Sí") : ""),
         el("td", {}, d.direccion || ""),
@@ -283,6 +285,7 @@ function editar(ctx, dato, onSave) {
     campo("correo", "Correo", {}),
     campo("grupo", "Grupo", { tag: "select", opciones: ["", ...GRUPOS.map((g) => g.nombre)] }),
     campo("estado", "Estado", { tag: "select", opciones: ESTADOS_CONTACTO }),
+    campo("calendario", "Calendario", { tag: "select", opciones: ["", "Calendario A", "Calendario B"] }),
     campo("origen", "Origen", { tag: "select", opciones: ["", "WhatsApp", "Instagram", "Facebook", "Referido", "Antiguo", "Otro"] }),
     el("label", { class: "full" }, "Semanas de interés", semanas),
     el("label", { class: "chk full" }, ruta, " Requiere ruta"),
@@ -309,6 +312,7 @@ function editar(ctx, dato, onSave) {
         correo: f.correo.value.trim(),
         grupo: f.grupo.value,
         estado: f.estado.value,
+        calendario: f.calendario.value,
         origen: f.origen.value,
         comentario: f.comentario.value.trim(),
         ruta: ruta.checked,
