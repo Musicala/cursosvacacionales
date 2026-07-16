@@ -418,7 +418,21 @@ function editarPlaneacion(ctx, dato, onSave) {
         dlg.close();
         toast("Planeación guardada");
         onSave && onSave();
-      } catch (e) { toast("Error: " + e.message, "error"); }
+      } catch (e) {
+        // Si Firestore niega el permiso, mostramos los correos en conflicto
+        // para que coordinación pueda corregirlos sin adivinar.
+        const esPermiso = (e.code || "").includes("permission") || /permis/i.test(e.message || "");
+        if (esPermiso) {
+          const sesion = (ctx.usuario?.email || "").toLowerCase();
+          toast(
+            `Sin permisos: la clase está asignada al correo "${d.docenteCorreo || "(sin correo)"}" ` +
+            `y tu sesión es "${sesion}". Coordinación debe corregir el correo en Docentes u Horarios.`,
+            "error"
+          );
+        } else {
+          toast("Error: " + e.message, "error");
+        }
+      }
     } },
   ]);
 }
