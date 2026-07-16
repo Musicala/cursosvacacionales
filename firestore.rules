@@ -23,23 +23,6 @@ service cloud.firestore {
         && request.auth.token.email.lower() in correosDocentes();
     }
 
-    // Subcolecciones operativas que el docente SÍ puede editar.
-    function correoAuth() {
-      return request.auth.token.email.lower();
-    }
-
-    function esClasePropia() {
-      return resource.data.get('docenteCorreo', '') == correoAuth();
-    }
-
-    // La clase quedó con correo vacío o con un correo que ya no es de ningún
-    // docente vigente (ej: se corrigió un correo mal escrito). En ese caso el
-    // docente puede reclamarla poniendo su propio correo.
-    function puedeReclamarClase() {
-      return !(resource.data.get('docenteCorreo', '') in correosDocentes())
-        && request.resource.data.get('docenteCorreo', '') == correoAuth();
-    }
-
     function soloEditaPlaneacion() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'planeacion',
@@ -59,9 +42,11 @@ service cloud.firestore {
     match /temporadas/{temporadaId}/grupos/{grupoId} {
       allow read: if esAdmin() || esDocente();
       allow create, delete: if esAdmin();
+      // Cualquier docente registrado puede guardar planeación (la app ya le
+      // muestra solo sus propias clases; validar por correo bloqueaba a
+      // docentes cuyas clases quedaron con el correo viejo o vacío).
       allow update: if esAdmin()
-        || (esDocente() && soloEditaPlaneacion()
-            && (esClasePropia() || puedeReclamarClase()));
+        || (esDocente() && soloEditaPlaneacion());
     }
 
     match /temporadas/{temporadaId}/{sub}/{docId} {
