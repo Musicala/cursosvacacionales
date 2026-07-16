@@ -32,6 +32,14 @@ service cloud.firestore {
       return resource.data.get('docenteCorreo', '') == correoAuth();
     }
 
+    // La clase quedó con correo vacío o con un correo que ya no es de ningún
+    // docente vigente (ej: se corrigió un correo mal escrito). En ese caso el
+    // docente puede reclamarla poniendo su propio correo.
+    function puedeReclamarClase() {
+      return !(resource.data.get('docenteCorreo', '') in correosDocentes())
+        && request.resource.data.get('docenteCorreo', '') == correoAuth();
+    }
+
     function soloEditaPlaneacion() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'planeacion',
@@ -52,7 +60,8 @@ service cloud.firestore {
       allow read: if esAdmin() || esDocente();
       allow create, delete: if esAdmin();
       allow update: if esAdmin()
-        || (esDocente() && esClasePropia() && soloEditaPlaneacion());
+        || (esDocente() && soloEditaPlaneacion()
+            && (esClasePropia() || puedeReclamarClase()));
     }
 
     match /temporadas/{temporadaId}/{sub}/{docId} {

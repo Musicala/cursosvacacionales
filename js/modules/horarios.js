@@ -407,7 +407,11 @@ function editarPlaneacion(ctx, dato, onSave) {
         actividades: actividades.value.trim(),
         recursos: recursos.value.trim(),
         observacionesPlaneacion: observacionesPlaneacion.value.trim(),
-        docenteCorreo: d.docenteCorreo || correoDocente(d.docente),
+        // El docente siempre guarda con su propio correo: si la clase quedó
+        // con un correo viejo o vacío, así la "reclama" y las reglas lo aceptan.
+        docenteCorreo: ctx.rol === "docente"
+          ? (ctx.usuario?.email || "").trim().toLowerCase()
+          : (d.docenteCorreo || correoDocente(d.docente)),
       };
       try {
         await actualizar(ctx.temporadaId, "grupos", d.id, payload);
