@@ -146,10 +146,10 @@ export default async function render(root, ctx) {
     cont.append(el("div", { class: "guardian-toolbar" },
       el("div", {},
         el("h3", {}, "Planeación para compartir"),
-        el("p", { class: "muted small" }, "Resumen limpio por día, listo para enviar a acudientes o imprimir.")),
+        el("p", { class: "muted small" }, "Descarga el paquete para IA: pégalo en tu IA favorita y te redacta el informe para acudientes.")),
       el("div", { class: "row-actions guardian-actions" },
         el("button", { class: "btn ghost small", onclick: () => copiarPlaneacion(resumen) }, "Copiar texto"),
-        el("button", { class: "btn primary small", onclick: () => imprimirPlaneacion(ordenadas, tituloSemana) }, "Imprimir / PDF"))));
+        el("button", { class: "btn primary small", onclick: () => descargarParaIA(ordenadas, tituloSemana) }, "🤖 Descargar para IA"))));
 
     Object.entries(agruparPor(ordenadas, (d) => d.dia || "Sin día")).forEach(([dia, clases]) => {
       cont.append(el("section", { class: "guardian-day" },
@@ -302,35 +302,48 @@ async function copiarPlaneacion(texto) {
   }
 }
 
-function imprimirPlaneacion(filas, tituloSemana) {
-  const win = window.open("", "_blank");
-  if (!win) { toast("El navegador bloqueó la ventana de impresión", "error"); return; }
-  const html = filas.map((d) => `
-    <article class="card">
-      <div class="top">
-        <strong>${escapeHtml(d.taller || d.area || "Clase")}</strong>
-        <span>${escapeHtml([d.dia, rangoHoras(d), d.grupo].filter(Boolean).join(" · "))}</span>
-      </div>
-      <p><b>Objetivo:</b> ${escapeHtml(valorPlano(d.planeacion))}</p>
-      <p><b>Actividades:</b> ${escapeHtml(valorPlano(d.actividades))}</p>
-      <p><b>Recursos:</b> ${escapeHtml(valorPlano(d.recursos))}</p>
-      <p class="meta">${escapeHtml([d.docente, d.salon].filter(Boolean).join(" · "))}</p>
-    </article>`).join("");
-  win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Planeación Musicala</title>
-    <style>
-      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:32px;color:#1f2330}
-      h1{margin:0 0 4px;color:#6d28d9}.sub{color:#6b7280;margin:0 0 20px}
-      .card{break-inside:avoid;border:1px solid #e7e3f3;border-radius:10px;padding:14px 16px;margin:0 0 12px}
-      .top{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #f1eefb;padding-bottom:8px;margin-bottom:8px}
-      .top span,.meta{color:#6b7280;font-size:13px}p{margin:7px 0;line-height:1.45;white-space:pre-wrap}
-    </style></head><body><h1>Planeación Musicala</h1><p class="sub">${escapeHtml(tituloSemana)}</p>${html}</body></html>`);
-  win.document.close();
-  win.focus();
-  win.print();
-}
+// Descarga un .txt con instrucciones + datos de planeación para pegar en una IA
+// (ChatGPT, Claude, Gemini...) y obtener el informe redactado para acudientes.
+function descargarParaIA(filas, tituloSemana) {
+  const datos = [];
+  Object.entries(agruparPor(filas, (d) => d.dia || "Sin día")).forEach(([dia, clases]) => {
+    datos.push("", `## ${dia}`);
+    clases.forEach((d) => {
+      datos.push(`### ${d.taller || d.area || "Clase"}`);
+      datos.push(`- Grupo: ${d.grupo || "—"}`);
+      if (rangoHoras(d)) datos.push(`- Horario: ${rangoHoras(d)}`);
+      if (d.docente) datos.push(`- Docente: ${d.docente}`);
+      if (d.salon) datos.push(`- Salón: ${d.salon}`);
+      datos.push(`- Objetivo / planeación: ${valorPlano(d.planeacion, "(sin registrar)")}`);
+      datos.push(`- Actividades: ${valorPlano(d.actividades, "(sin registrar)")}`);
+      datos.push(`- Recursos: ${valorPlano(d.recursos, "(sin registrar)")}`);
+    });
+  });
 
-function escapeHtml(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m]));
+  const prompt = [
+    "Eres el asistente de comunicaciones de Musicala, una academia de música y artes.",
+    "Con la información de planeación de clases que aparece abajo, redacta un informe cálido y claro dirigido a los acudientes (padres y madres) de los cursos vacacionales.",
+    "",
+    "Indicaciones:",
+    "- Escribe en español, con tono cercano, profesional y entusiasta.",
+    "- Organiza el informe por día y por clase, con títulos claros.",
+    "- Redacta en prosa fluida: convierte los objetivos y actividades en párrafos que expliquen qué aprenderán y vivirán los niños, sin copiar el texto tal cual.",
+    "- Si un dato dice \"(sin registrar)\" o \"Por definir\", omítelo con elegancia; no digas que falta información.",
+    "- No inventes contenidos, fechas ni actividades que no estén en los datos.",
+    "- Cierra con un párrafo breve de agradecimiento por la confianza en Musicala.",
+    "",
+    `# Datos de planeación — ${tituloSemana}`,
+    ...datos,
+  ].join("\n");
+
+  const blob = new Blob([prompt], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a", { href: url, download: `Planeacion para IA - ${tituloSemana}.txt` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast("Archivo descargado: pégalo en tu IA para generar el informe");
 }
 
 function tarjetaSemanaVacacional(info, soloLectura) {
