@@ -332,6 +332,10 @@ function descargarParaIA(filas, tituloSemana) {
     "- No inventes contenidos, fechas ni actividades que no estén en los datos.",
     "- Cierra con un párrafo breve de agradecimiento por la confianza en Musicala.",
     "",
+    "Entrega:",
+    "1. El texto completo del informe aquí en el chat, listo para copiar.",
+    "2. Además, genera el mismo informe como archivo PDF descargable, con diseño limpio y profesional (títulos destacados, buena tipografía y espaciado). Si tu plataforma no permite crear archivos PDF, indícalo y entrega el informe en un formato descargable equivalente.",
+    "",
     `# Datos de planeación — ${tituloSemana}`,
     ...datos,
   ].join("\n");
