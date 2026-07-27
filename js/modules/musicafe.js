@@ -1,5 +1,5 @@
 // Módulo Musicafé (onces): registro de consumo diario por estudiante y cuenta acumulada.
-import { el, cop, toast, modal, confirmar, hoyISO } from "../ui.js?v=3";
+import { el, cop, toast, modal, confirmar, hoyISO, fmtFecha } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
 import { MUSICAFE_PRODUCTOS, MUSICAFE_CATEGORIAS } from "../catalogos.js?v=3";
 import { LIBRE, VETADO, permisoDe, puedeCategoria } from "../musicafe-permisos.js?v=1";
@@ -90,13 +90,15 @@ export default async function render(root, ctx) {
       granTotal += e.total; granPend += e.pendiente;
       const saldado = e.pendiente === 0;
       tb.append(el("tr", { class: saldado ? "saldada" : "" },
-        el("td", {}, el("strong", {}, n)),
+        el("td", {}, el("button", { class: "link-est", title: "Ver el detalle de lo que consumió", onclick: () => verDetalle(n, e) }, n)),
         el("td", {}, e.dias.size + " día(s)"),
         el("td", {}, cop(e.total)),
         el("td", {}, saldado
           ? el("span", { class: "badge ok" }, "Saldado")
           : el("strong", {}, cop(e.pendiente))),
-        el("td", { class: "row-actions" }, saldado
+        el("td", { class: "row-actions" },
+          el("button", { class: "btn ghost small", title: "Ver detalle del consumo", onclick: () => verDetalle(n, e) }, "🧾 Detalle"),
+          saldado
           ? el("button", { class: "btn ghost small", onclick: () => marcarPagado(ctx, e.regs, false, cargar) }, "Reabrir")
           : el("button", { class: "btn primary small", onclick: () => saldarCuenta(ctx, n, e, cargar) }, "💵 Saldar")),
       ));
@@ -259,6 +261,77 @@ async function registrar(ctx, onSave) {
       });
       dlg.close(); toast("Consumo registrado"); onSave && onSave();
     } },
+  ]);
+}
+
+// Historial detallado de un estudiante: qué compró cada día y el resumen por producto.
+function verDetalle(nombre, e) {
+  const regs = [...e.regs].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+
+  // ---- Resumen por producto (para decir "compró 3 galletas y 2 jugos") ----
+  const porProd = new Map();
+  regs.forEach((d) => (d.productos || []).forEach((p) => {
+    const k = `${p.nombre}|${p.precio}`;
+    const acc = porProd.get(k) || { nombre: p.nombre, precio: Number(p.precio) || 0, cantidad: 0, subtotal: 0 };
+    const c = Number(p.cantidad) || 0;
+    acc.cantidad += c;
+    acc.subtotal += c * (Number(p.precio) || 0);
+    porProd.set(k, acc);
+  }));
+  const productos = [...porProd.values()].sort((a, b) => b.subtotal - a.subtotal);
+
+  const body = el("div", {});
+
+  body.append(el("div", { class: "total-line" },
+    `${e.dias.size} día(s) · Consumido: `, el("strong", {}, cop(e.total)),
+    " · Pendiente: ", el("strong", {}, cop(e.pendiente))));
+
+  body.append(el("h4", {}, "Resumen por producto"));
+  if (!productos.length) body.append(el("div", { class: "empty" }, "Sin productos registrados."));
+  else body.append(el("div", { class: "table-wrap" }, el("table", { class: "table" },
+    el("thead", {}, el("tr", {}, ...["Producto", "Cant.", "Precio", "Subtotal"].map((h) => el("th", {}, h)))),
+    el("tbody", {}, ...productos.map((p) => el("tr", {},
+      el("td", {}, p.nombre),
+      el("td", {}, String(p.cantidad)),
+      el("td", {}, cop(p.precio)),
+      el("td", {}, el("strong", {}, cop(p.subtotal)))))))));
+
+  body.append(el("h4", {}, "Historial día por día"));
+  regs.forEach((d) => {
+    const items = (d.productos || []);
+    body.append(el("div", { class: "detalle-dia" },
+      el("div", { class: "detalle-dia-head" },
+        el("strong", {}, fmtFecha(d.fecha) || d.fecha),
+        el("span", {}, cop(d.total)),
+        d.pagado ? el("span", { class: "badge ok" }, "Pagado") : el("span", { class: "badge pend" }, "Pendiente")),
+      items.length
+        ? el("ul", { class: "detalle-items" }, ...items.map((p) => el("li", {},
+          `${Number(p.cantidad) || 0} × ${p.nombre} — ${cop(p.precio)} c/u = `,
+          el("strong", {}, cop((Number(p.cantidad) || 0) * (Number(p.precio) || 0))))))
+        : el("div", { class: "muted small" }, "Sin desglose de productos en este registro."),
+      d.excepcion
+        ? el("div", { class: "muted small" }, `⚠️ Excepción autorizada por ${d.excepcion.autorizadoPor} · ${d.excepcion.motivo}`)
+        : null,
+    ));
+  });
+
+  // Texto plano listo para enviarle al acudiente por WhatsApp.
+  function textoResumen() {
+    const lineas = [`Musicafé — ${nombre}`, ""];
+    regs.forEach((d) => {
+      lineas.push(`${fmtFecha(d.fecha) || d.fecha} — ${cop(d.total)}${d.pagado ? " (pagado)" : ""}`);
+      (d.productos || []).forEach((p) => lineas.push(`   • ${Number(p.cantidad) || 0} × ${p.nombre} — ${cop((Number(p.cantidad) || 0) * (Number(p.precio) || 0))}`));
+    });
+    lineas.push("", `Total consumido: ${cop(e.total)}`, `Pendiente por pagar: ${cop(e.pendiente)}`);
+    return lineas.join("\n");
+  }
+
+  modal("Detalle de " + nombre, body, [
+    { texto: "Copiar resumen", clase: "ghost", onClick: async () => {
+      try { await navigator.clipboard.writeText(textoResumen()); toast("Resumen copiado"); }
+      catch { toast("No se pudo copiar", "error"); }
+    } },
+    { texto: "Cerrar", clase: "primary" },
   ]);
 }
 

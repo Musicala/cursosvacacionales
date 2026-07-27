@@ -337,6 +337,16 @@ label.check input,.checks .check input{width:auto}
 .badge.warn{background:#fdeccd;color:#9a6700}
 tr.saldada td{opacity:.6}
 
+/* Musicafé: detalle del consumo por estudiante */
+.link-est{background:none;border:none;padding:0;font:inherit;font-weight:800;color:var(--pri,#6b3ff0);
+  cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}
+.link-est:hover{opacity:.75}
+.detalle-dia{border:1px solid #e6e0f5;border-radius:10px;padding:.6rem .8rem;margin:.5rem 0}
+.detalle-dia-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.95rem}
+.detalle-dia-head span:not(.badge){margin-left:auto;font-weight:700}
+.detalle-items{margin:.4rem 0 0;padding-left:1.1rem;font-size:.9rem}
+.detalle-items li{margin:.15rem 0}
+
 /* Permiso del Musicafé: aviso al registrar el consumo y productos bloqueados */
 .permiso-aviso{display:flex;flex-direction:column;align-items:flex-start;gap:.35rem;
   margin:.8rem 0;padding:.7rem .9rem;border-radius:10px;border:2px solid transparent}
