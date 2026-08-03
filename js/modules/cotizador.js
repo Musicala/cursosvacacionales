@@ -4,7 +4,7 @@
 import { el, cop, toast } from "../ui.js?v=4";
 import { obtenerTemporada } from "../db.js?v=5";
 import { semanasDetalle } from "../catalogos.js?v=4";
-import { calcularPrecio } from "./inscripciones.js?v=7";
+import { calcularPrecio } from "./inscripciones.js?v=8";
 
 // Descuentos que el cotizador aplica AUTOMÁTICAMENTE (no como checkbox manual):
 //  - "Hermano": solo del 2º estudiante en adelante.

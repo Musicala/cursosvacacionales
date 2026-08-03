@@ -372,8 +372,12 @@ tr.saldada td{opacity:.6}
 .payment-allocation-row{display:grid;grid-template-columns:1fr 145px;align-items:center;gap:.7rem;
   border:1px solid var(--line);border-radius:9px;padding:.55rem .7rem}
 .payment-allocation-row input{text-align:right}
+.payment-notice{display:flex;align-items:center;justify-content:space-between;gap:.8rem;
+  background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:.7rem .8rem;margin:.5rem 0 0}
+.payment-notice .btn{flex:0 0 auto}
 @media(max-width:600px){
   .payment-balance{grid-template-columns:1fr}
+  .payment-notice{align-items:flex-start;flex-direction:column}
   .payment-week-row,.payment-history-row,.payment-allocation-head{align-items:flex-start;flex-direction:column}
   .payment-allocation-row{grid-template-columns:1fr 120px}
   .week-payment{align-items:flex-start}

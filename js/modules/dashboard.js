@@ -3,7 +3,7 @@ import { el, cop } from "../ui.js?v=3";
 import { listar } from "../db.js?v=5";
 import { ESTADOS_CONTACTO, RUTA_MINIMO, nombreGrupo, semanasDetalle, semanaActualInfo } from "../catalogos.js?v=5";
 import { listarPagos } from "../db.js?v=5";
-import { totalPagado } from "../pagos.js?v=1";
+import { totalPagado } from "../pagos.js?v=2";
 
 export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },

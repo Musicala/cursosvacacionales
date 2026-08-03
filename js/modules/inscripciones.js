@@ -2,7 +2,7 @@
 import { el, cop, toast, modal, confirmar, fmtFecha, hoyISO } from "../ui.js?v=3";
 import { listar, crear, actualizar, eliminar, obtenerTemporada, listarTemporadas, listarPagos, crearPago, eliminarPago } from "../db.js?v=5";
 import { PAQUETES, ESTADOS_PAGO, GRUPOS, grupoPorEdad, nombreGrupo, semanasDe, semanasDetalle, diasDe, HORARIO_ESTANDAR, HORARIO_INTENSIVO } from "../catalogos.js?v=5";
-import { totalPagado, saldoInscripcion, estadoPagoCalculado, valoresPorSemana, pagosPorSemana } from "../pagos.js?v=1";
+import { totalPagado, saldoInscripcion, estadoPagoCalculado, valoresPorSemana, pagosPorSemana } from "../pagos.js?v=2";
 import { MUSICAFE_CATEGORIAS } from "../catalogos.js?v=5";
 import { NIVELES, LIBRE, RESTRINGIDO, VETADO, permisoDe, badgePermiso } from "../musicafe-permisos.js?v=1";
 
@@ -353,12 +353,20 @@ function gestionarPagos(ctx, d, onSave) {
   const semanasValor = valoresPorSemana(d);
   const semanasPagado = pagosPorSemana(d);
   body.append(el("h4", {}, "Estado por semana"));
-  body.append(el("div", { class: "payment-weeks" }, ...(d.semanas || []).map((semana) =>
-    el("div", { class: "payment-week-row" },
-      el("div", {}, el("strong", {}, semana), el("div", { class: "muted small" }, `Valor ${cop(semanasValor[semana])}`)),
+  body.append(el("div", { class: "payment-weeks" }, ...(d.semanas || []).map((semana) => {
+    const dias = diasDeInscrito(d, semana, ctx);
+    return el("div", { class: "payment-week-row" },
+      el("div", {},
+        el("strong", {}, semana),
+        el("div", { class: "muted small" }, `${dias.length} día(s): ${dias.join(", ") || "—"}`),
+        el("div", { class: "muted small" }, `Valor ${cop(semanasValor[semana])}`)),
       estadoSemana(d, semana),
-    )
-  )));
+    );
+  })));
+  const totalDias = (d.semanas || []).reduce((s, semana) => s + diasDeInscrito(d, semana, ctx).length, 0);
+  body.append(el("div", { class: "muted small" },
+    `Se cobra por día: ${totalDias} día(s) en total, repartidos en ${(d.semanas || []).length} semana(s).`));
+  body.append(avisoValorDesactualizado(ctx, d, onSave));
 
   body.append(el("h4", {}, "Historial de movimientos"));
   const historial = el("div", { class: "payment-history" });
@@ -386,6 +394,53 @@ function gestionarPagos(ctx, d, onSave) {
     { texto: "Cerrar", clase: "ghost" },
     { texto: "+ Registrar abono", clase: "primary", onClick: (dlg) => { dlg.close(); registrarAbono(ctx, d, onSave); } },
   ]);
+}
+
+// Las inscripciones guardadas antes de este cambio cobraron semanas completas
+// aunque el estudiante viniera solo algunos días. No tocamos el valor por
+// nuestra cuenta (es plata): avisamos y dejamos que coordinación decida.
+function valorSegunDias(ctx, d) {
+  return calcularPrecio({
+    semanas: d.semanas || [],
+    diasPorSemana: d.diasPorSemana || {},
+    detalleSemanas: ctx._semanasDetalle,
+    precios: (ctx._precios && ctx._precios.length) ? ctx._precios : [],
+    descuentosLista: ctx._descuentosLista || [],
+    descuentoIds: d.descuentoIds || [],
+  });
+}
+
+function avisoValorDesactualizado(ctx, d, onSave) {
+  if (!(d.semanas || []).length || !(ctx._precios || []).length) return null;
+  // Solo aplica si la inscripción sí guardó días elegidos.
+  const tieneDias = (d.semanas || []).some((s) => Array.isArray((d.diasPorSemana || {})[s]));
+  if (!tieneDias) return null;
+
+  const calc = valorSegunDias(ctx, d);
+  const actual = Number(d.valor) || 0;
+  if (!calc.valorFinal || calc.valorFinal === actual) return null;
+
+  return el("div", { class: "panel warn payment-notice" },
+    el("div", {},
+      el("strong", {}, "El valor no corresponde a los días marcados"),
+      el("div", { class: "muted small" },
+        `Guardado ${cop(actual)} · Según los ${calc.dias} día(s) marcados: ${cop(calc.valorFinal)} (${calc.horas} horas).`),
+      el("div", { class: "muted small" }, "Revisa antes de cambiarlo: si hubo un acuerdo distinto, déjalo como está.")),
+    el("button", { class: "btn small", onclick: () => confirmar(
+      `¿Cambiar el valor de ${d.estudiante} de ${cop(actual)} a ${cop(calc.valorFinal)}?`,
+      async () => {
+        await actualizar(ctx.temporadaId, "inscripciones", d.id, {
+          valor: calc.valorFinal,
+          valorBase: calc.valorBase,
+          totalDescuento: calc.totalDescuento,
+          diasContratados: calc.dias,
+          horasContratadas: calc.horas,
+          paqueteCalculado: calc.paquete,
+        });
+        toast("Valor actualizado");
+        onSave && onSave();
+      }) }, "Recalcular por días"),
+  );
 }
 
 function registrarAbono(ctx, d, onSave) {
@@ -469,10 +524,16 @@ function horasDesdeConcepto(concepto) {
   return m ? Number(m[1]) : 0;
 }
 
-export function calcularPrecio({ semanas, detalleSemanas, precios, descuentosLista, descuentoIds }) {
+// Calcula el valor a partir de los **días** realmente marcados, no de semanas
+// completas: quien viene martes y jueves de dos semanas paga 4 días, no 2 semanas.
+// Si no se pasa diasPorSemana (p. ej. el Cotizador), se asume la semana completa.
+export function calcularPrecio({ semanas, diasPorSemana, detalleSemanas, precios, descuentosLista, descuentoIds }) {
   const seleccion = new Set(semanas || []);
+  const porSemana = diasPorSemana || {};
   const dias = (detalleSemanas || []).reduce((sum, s) => {
     if (!seleccion.has(s.nombre)) return sum;
+    const marcados = porSemana[s.nombre];
+    if (Array.isArray(marcados)) return sum + marcados.length;
     return sum + (Number(s.dias) || 5);
   }, 0);
   const horas = dias * 4;
@@ -527,7 +588,10 @@ function editar(ctx, dato, onSave) {
         const cajas = [...diasWrap.querySelectorAll(`input[data-semana="${semana}"]`)];
         const marcar = cajas.some((c) => !c.checked);
         cajas.forEach((c) => { c.checked = marcar; });
+        recalcularValor();
       } }, "Todos");
+      // Cambiar los días cambia el valor: se cobra por día, no por semana.
+      checks.forEach((lbl) => lbl.querySelector("input").addEventListener("change", () => recalcularValor()));
       diasWrap.append(el("div", { class: "week-day-row" },
         el("div", { class: "week-day-title" }, el("strong", {}, semana), todos),
         el("div", { class: "chips-input" }, checks),
@@ -721,6 +785,7 @@ function editar(ctx, dato, onSave) {
   function calcularPrecioActual() {
     return calcularPrecio({
       semanas: semanasSeleccionadas(),
+      diasPorSemana: diasPorSemanaSeleccionados(),
       detalleSemanas: ctx._semanasDetalle,
       precios,
       descuentosLista: descuentosDisponibles,

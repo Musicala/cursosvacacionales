@@ -1,7 +1,7 @@
 // Módulo Estadísticas: compara todas las temporadas (inscritos, ingresos, recaudo…).
 import { el, cop, fmtCorta } from "../ui.js?v=3";
 import { listarTemporadas, listar, listarPagos } from "../db.js?v=5";
-import { totalPagado, estadoPagoCalculado } from "../pagos.js?v=1";
+import { totalPagado, estadoPagoCalculado } from "../pagos.js?v=2";
 
 export default async function render(root, ctx) {
   // Solo Admin: aquí se ven ingresos, recaudo y comparativos entre temporadas.
