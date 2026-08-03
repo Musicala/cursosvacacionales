@@ -1,5 +1,5 @@
 import { onAuth, login, logout, resultadoRedirect } from "./firebase.js?v=4";
-import { rolDeCorreo } from "../firebase-config.js?v=4";
+import { rolDeCorreo } from "../firebase-config.js?v=5";
 import { $, el, toast, fmtCorta } from "./ui.js?v=4";
 import { listarTemporadas, crearTemporada } from "./db.js?v=5";
 

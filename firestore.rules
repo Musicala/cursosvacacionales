@@ -7,12 +7,12 @@ service cloud.firestore {
     // Estadísticas solo agrega datos de inscripciones/musicafé, que el
     // Asistente igual necesita para su trabajo diario.
     function esAdmin() {
+      // Debe coincidir con CORREOS_PERMITIDOS de firebase-config.js.
       return request.auth != null && request.auth.token.email in [
-        "musicalaasesor@gmail.com",
-        "imusicala@gmail.com",
-        "catalina.medina.leal@gmail.com",
         "alekcaballeromusic@gmail.com",
-        "adminmusicala@gmail.com"
+        "catalina.medina.leal@gmail.com",
+        "adminmusicala@gmail.com",
+        "musicalaasesor@gmail.com"
       ];
     }
 

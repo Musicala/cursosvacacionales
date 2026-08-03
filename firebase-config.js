@@ -24,15 +24,14 @@ export const firebaseConfig = {
 
 // Correos con rol Admin.
 export const CORREOS_ADMIN = [
-  "imusicala@gmail.com",
   "alekcaballeromusic@gmail.com",
-  "adminmusicala@gmail.com",
+  "catalina.medina.leal@gmail.com",
 ];
 
 // Correos con rol Asistente.
 export const CORREOS_ASISTENTE = [
+  "adminmusicala@gmail.com",
   "musicalaasesor@gmail.com",
-  "catalina.medina.leal@gmail.com",
 ];
 
 // Todos los correos de coordinación (admin + asistente) que pueden entrar.
