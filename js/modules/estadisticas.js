@@ -4,6 +4,14 @@ import { listarTemporadas, listar, listarPagos } from "../db.js?v=5";
 import { totalPagado, estadoPagoCalculado } from "../pagos.js?v=1";
 
 export default async function render(root, ctx) {
+  // Solo Admin: aquí se ven ingresos, recaudo y comparativos entre temporadas.
+  if (ctx.rol !== "admin") {
+    root.append(el("div", { class: "panel" },
+      el("h3", {}, "📈 Estadísticas"),
+      el("div", { class: "muted" }, "Esta sección es solo para coordinación (rol Admin).")));
+    return;
+  }
+
   root.append(el("div", { class: "panel-head" }, el("h2", {}, "📈 Estadísticas")));
 
   const cont = el("div", {});

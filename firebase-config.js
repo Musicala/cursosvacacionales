@@ -13,12 +13,35 @@ export const firebaseConfig = {
   appId: "1:627854916940:web:579d81821f4fed394ee3e9",
 };
 
-// Solo estos correos pueden entrar a la app.
-// Agrega o quita correos aquí cuando lo necesites.
-export const CORREOS_PERMITIDOS = [
-  "musicalaasesor@gmail.com",
+// ============================================================
+//  ROLES
+//  - Admin      → ve todo, incluidas Estadísticas (ingresos, rentabilidad…).
+//  - Asistente  → todo el trabajo del día a día (contactos, inscripciones,
+//                 pagos pendientes, horarios…) pero NO ve Estadísticas.
+//  - Docente    → no se lista aquí: se registra en el módulo
+//                 "Horarios y docentes" y solo ve lo suyo.
+// ============================================================
+
+// Correos con rol Admin.
+export const CORREOS_ADMIN = [
   "imusicala@gmail.com",
-  "catalina.medina.leal@gmail.com",
   "alekcaballeromusic@gmail.com",
   "adminmusicala@gmail.com",
 ];
+
+// Correos con rol Asistente.
+export const CORREOS_ASISTENTE = [
+  "musicalaasesor@gmail.com",
+  "catalina.medina.leal@gmail.com",
+];
+
+// Todos los correos de coordinación (admin + asistente) que pueden entrar.
+export const CORREOS_PERMITIDOS = [...CORREOS_ADMIN, ...CORREOS_ASISTENTE];
+
+// Devuelve "admin" | "asistente" | null para un correo de coordinación.
+export function rolDeCorreo(correo) {
+  const c = (correo || "").toLowerCase().trim();
+  if (CORREOS_ADMIN.map((x) => x.toLowerCase()).includes(c)) return "admin";
+  if (CORREOS_ASISTENTE.map((x) => x.toLowerCase()).includes(c)) return "asistente";
+  return null;
+}

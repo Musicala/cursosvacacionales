@@ -1,9 +1,10 @@
-import { onAuth, login, logout, correoPermitido, resultadoRedirect } from "./firebase.js?v=4";
+import { onAuth, login, logout, resultadoRedirect } from "./firebase.js?v=4";
+import { rolDeCorreo } from "../firebase-config.js?v=4";
 import { $, el, toast, fmtCorta } from "./ui.js?v=4";
 import { listarTemporadas, crearTemporada } from "./db.js?v=5";
 
 import dashboard from "./modules/dashboard.js?v=7";
-import estadisticas from "./modules/estadisticas.js?v=6";
+import estadisticas from "./modules/estadisticas.js?v=7";
 import contactos from "./modules/contactos.js?v=11";
 import inscripciones from "./modules/inscripciones.js?v=7";
 import horarios from "./modules/horarios.js?v=8";
@@ -36,9 +37,15 @@ const MODULOS = [
 // Módulos que puede ver el rol Docente (en este orden).
 const MODULOS_DOCENTE = ["horarios", "asistencia", "musicafe", "materiales", "musipuntos"];
 
+// Módulos que NO ve el rol Asistente (información financiera consolidada).
+const MODULOS_SOLO_ADMIN = ["estadisticas"];
+
+// Etiqueta que se muestra en la barra superior.
+const NOMBRE_ROL = { admin: "Admin", asistente: "Asistente", docente: "Docente" };
+
 const estado = {
   usuario: null,
-  rol: "admin",          // "admin" | "docente"
+  rol: "admin",          // "admin" | "asistente" | "docente"
   docente: null,         // registro del docente si rol === "docente"
   temporadaId: localStorage.getItem("temporadaId") || null,
   temporadas: [],
@@ -48,6 +55,7 @@ const estado = {
 // Módulos visibles según el rol actual.
 function modulosVisibles() {
   if (estado.rol === "docente") return MODULOS.filter((m) => MODULOS_DOCENTE.includes(m.id));
+  if (estado.rol === "asistente") return MODULOS.filter((m) => !MODULOS_SOLO_ADMIN.includes(m.id));
   return MODULOS;
 }
 
@@ -64,8 +72,9 @@ onAuth(async (user) => {
   if (!user) return mostrarLogin();
   const correo = (user.email || "").toLowerCase();
 
-  if (correoPermitido(correo)) {
-    estado.rol = "admin";
+  const rolCoordinacion = rolDeCorreo(correo);
+  if (rolCoordinacion) {
+    estado.rol = rolCoordinacion;   // "admin" o "asistente"
     estado.docente = null;
   } else {
     // ¿Es un docente registrado? (su correo está en config/global → docentes).
@@ -137,7 +146,7 @@ function mostrarErrorAcceso(titulo, detalle) {
 
 async function iniciarApp() {
   estado.temporadas = await listarTemporadas();
-  if (!estado.temporadas.length && estado.rol === "admin") {
+  if (!estado.temporadas.length && estado.rol !== "docente") {
     // Crear una temporada inicial automáticamente (solo coordinación).
     await crearTemporada("2026-junio", { nombre: "Junio 2026", orden: 202606, activa: true });
     estado.temporadas = await listarTemporadas();
@@ -161,7 +170,7 @@ async function iniciarApp() {
   // Migración única: renombra los grupos guardados con nombres viejos.
   // Corre en segundo plano para no demorar el arranque; si cambió algo,
   // repinta el módulo activo para mostrar los datos ya actualizados.
-  if (estado.rol === "admin") {
+  if (estado.rol !== "docente") {
     migrarNombresGrupos(estado.temporadas)
       .then((cambiados) => {
         if (cambiados) {
@@ -209,14 +218,14 @@ function construirShell() {
     menuBtn,
     el("div", { class: "top-left" },
       el("span", { class: "muted small top-temp-lbl" }, "Temporada:"), selTemp,
-      estado.rol === "admin"
+      estado.rol !== "docente"
         ? el("button", { class: "btn ghost small", title: "Nueva temporada", onclick: nuevaTemporada }, "+ Temporada")
         : null,
     ),
     el("div", { class: "top-right" },
-      estado.rol === "docente"
-        ? el("span", { class: "pill" }, "Docente · " + (estado.docente?.nombre || ""))
-        : null,
+      el("span", { class: "pill" }, estado.rol === "docente"
+        ? "Docente · " + (estado.docente?.nombre || "")
+        : NOMBRE_ROL[estado.rol] || estado.rol),
       el("span", { class: "muted small top-email" }, estado.usuario.email),
       el("button", { class: "btn ghost small", onclick: () => logout() }, "Salir"),
     ),

@@ -1,7 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Coordinación: lectura y escritura total.
+    // Coordinación (Admin + Asistente): lectura y escritura total.
+    // La diferencia Admin/Asistente se aplica en la app (firebase-config.js):
+    // el Asistente no ve el módulo Estadísticas. No se separa aquí porque
+    // Estadísticas solo agrega datos de inscripciones/musicafé, que el
+    // Asistente igual necesita para su trabajo diario.
     function esAdmin() {
       return request.auth != null && request.auth.token.email in [
         "musicalaasesor@gmail.com",
