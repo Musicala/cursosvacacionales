@@ -78,7 +78,21 @@ export default async function render(root, ctx) {
     catch (error) { toast("No se pudo crear el catálogo: " + error.message, "error"); }
   }
   async function sincronizar() {
-    try { services = (await requestJson(WIX_SERVICES_URL)).services || []; toast(`${services.length} servicio(s) CLASS sincronizados desde Wix`); await pintarCatalogo(); }
+    try {
+      const listado = (await requestJson(WIX_SERVICES_URL)).services || [];
+      // Conserva compatibles los IDs ya guardados: Wix permite verificarlos uno
+      // a uno aunque no aparezcan en una página del listado general.
+      const verificados = await Promise.all(workshops.filter((w) => w.wixServiceId).map(async (workshop) => {
+        const result = await requestJson(`${WIX_SERVICES_URL}?${new URLSearchParams({ serviceId: workshop.wixServiceId })}`);
+        const service = result.checkedService;
+        return service?.found && service.type === "CLASS"
+          ? { id: service.id, name: service.name, type: service.type, hidden: service.hidden, onlineBooking: service.onlineBookingEnabled }
+          : null;
+      }));
+      services = [...new Map([...listado, ...verificados.filter(Boolean)].map((service) => [service.id, service])).values()]
+        .sort((a, b) => a.name.localeCompare(b.name, "es"));
+      toast(`${services.length} servicio(s) CLASS sincronizados desde Wix`); await pintarCatalogo();
+    }
     catch (error) { toast("No se pudieron sincronizar servicios: " + error.message, "error"); }
   }
   async function verificarServicio(serviceId) {

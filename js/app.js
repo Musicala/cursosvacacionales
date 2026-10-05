@@ -48,7 +48,7 @@ const NOMBRE_ROL = { admin: "Admin", asistente: "Asistente", docente: "Docente" 
 // función no debe impedir que el administrador entre al resto del aplicativo.
 async function cargarWix(root, ctx) {
   try {
-    const { default: wix } = await import("./modules/wix.js?v=4");
+    const { default: wix } = await import("./modules/wix.js?v=5");
     return wix(root, ctx);
   } catch (e) {
     console.error("No se pudo cargar el módulo Wix", e);
