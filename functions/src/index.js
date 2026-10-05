@@ -9,6 +9,7 @@ admin.initializeApp();
 // La clave jamás se incluye en Hosting ni se devuelve al navegador.
 const wixApiKey = defineSecret("WIX_API_KEY");
 const WIX_SITE_ID = "1c8e0ead-65dd-4028-aad4-eaa3dda243c0";
+const WIX_SERVICES_QUERY_URL = "https://www.wixapis.com/_api/bookings/v2/services/query";
 const TIME_ZONE = "America/Bogota";
 const ALLOWED_ORIGINS = [/^https:\/\/musicala\.github\.io$/, /^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?$/];
 const COORDINACION = new Set([
@@ -109,12 +110,18 @@ async function listEventTimeSlots(serviceIds, from, to) {
 }
 
 async function getService(serviceId) {
-  const response = await fetch(`https://www.wixapis.com/_api/bookings/v2/services/${encodeURIComponent(serviceId)}`, {
+  const url = `https://www.wixapis.com/_api/bookings/v2/services/${encodeURIComponent(serviceId)}`;
+  const response = await fetch(url, {
     headers: wixHeaders(),
   });
-  if (!response.ok) return { id: serviceId, found: false, status: response.status };
+  if (!response.ok) {
+    await wixRequestError("Wix Get Service failed", response);
+    logger.warn("Wix Get Service trace", { url, siteId: WIX_SITE_ID, serviceId, status: response.status });
+    return { id: serviceId, found: false, status: response.status };
+  }
   const data = await response.json();
   const service = data.service || {};
+  logger.info("Wix Get Service trace", { url, siteId: WIX_SITE_ID, status: response.status, responseKeys: Object.keys(data), service: { id: service.id || "", name: service.name || "", type: service.type || "" } });
   return {
     id: serviceId,
     found: true,
@@ -131,29 +138,35 @@ async function listClassServices() {
   let total = Infinity;
   const services = [];
   while (offset < total) {
-    const response = await fetch("https://www.wixapis.com/_api/bookings/v2/services/query", {
+    const requestBody = { query: { filter: { type: { $eq: "CLASS" } }, paging: { limit, offset } } };
+    const response = await fetch(WIX_SERVICES_QUERY_URL, {
       method: "POST",
       headers: wixHeaders(true),
-      body: JSON.stringify({ query: { paging: { limit, offset } } }),
+      body: JSON.stringify(requestBody),
     });
     if (!response.ok) {
       await wixRequestError("Wix Services query failed", response);
+      logger.error("Wix Services query trace", { url: WIX_SERVICES_QUERY_URL, siteId: WIX_SITE_ID, status: response.status, requestBody });
       throw new Error("WIX_SERVICES_REQUEST_FAILED");
     }
     const data = await response.json();
     const page = data.services || [];
+    logger.info("Wix Services query trace", { url: WIX_SERVICES_QUERY_URL, siteId: WIX_SITE_ID, status: response.status, responseKeys: Object.keys(data), wrapperDataKeys: data.data && typeof data.data === "object" ? Object.keys(data.data) : [], servicesReceived: page.length, received: page.map((service) => ({ id: service.id || "", name: service.name || "", type: service.type || "" })) });
     services.push(...page);
     const paging = data.pagingMetadata || {};
     total = Number.isFinite(paging.total) ? paging.total : offset + page.length;
     if (!page.length || page.length < limit) break;
     offset += page.length;
   }
-  return services.filter((s) => s.type === "CLASS").map((s) => ({
+  const classServices = services.filter((s) => s.type === "CLASS");
+  const expectedIds = ["9d77dd01-50c9-4955-9fde-a8c8330c4a3d", "601068d4-a42f-404d-ae59-8c1d23b84de3", "deaf3557-1318-4d61-8fe4-f5be32692ecb", "8a015cbc-bf41-44ab-b955-d82ef4407cc4"];
+  logger.info("Wix Services normalized trace", { servicesBeforeClassFilter: services.length, classServices: classServices.length, expectedIds: expectedIds.map((id) => ({ id, found: classServices.some((service) => service.id === id) })) });
+  return classServices.map((s) => ({
     id: s.id,
     name: s.name || "",
     type: s.type,
     hidden: Boolean(s.hidden),
-    onlineBooking: s.onlineBooking?.enabled ?? null,
+    onlineBookingEnabled: s.onlineBooking?.enabled ?? null,
   })).sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 

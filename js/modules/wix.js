@@ -38,9 +38,9 @@ export default async function render(root, ctx) {
     workshops = await listarTalleresVacacionales();
     catalogo.innerHTML = "";
     catalogo.append(el("div", { class: "panel-head" },
-      el("div", {}, el("h3", {}, "Talleres centrales"), el("p", { class: "muted small" }, "Sincroniza y comprueba los servicios CLASS ya vinculados; los UUID se guardan internamente.")),
+      el("div", {}, el("h3", {}, "Talleres centrales"), el("p", { class: "muted small" }, "Selecciona servicios por nombre; los UUID se guardan internamente.")),
       el("button", { class: "btn primary", onclick: sincronizar }, "🔄 SINCRONIZAR SERVICIOS WIX")));
-    if (!services.length) catalogo.append(el("p", { class: "muted small" }, "Sincroniza los servicios CLASS vinculados para comprobar su estado en Wix."));
+    if (!services.length) catalogo.append(el("p", { class: "muted small" }, "Sincroniza los servicios CLASS de Wix para habilitar los selectores y comprobar el estado."));
     if (!workshops.length) {
       catalogo.append(el("div", { class: "empty" }, el("p", {}, "Aún no existe el catálogo central."), el("button", { class: "btn primary", onclick: crearBase }, "Crear catálogo Musikids")));
       return;
@@ -79,8 +79,7 @@ export default async function render(root, ctx) {
   }
   async function sincronizar() {
     try {
-      // Esta clave de Wix permite consultar servicios conocidos, pero no enumerar
-      // todo el catálogo. Verificamos los enlaces realmente usados por Musicala.
+      const listado = (await requestJson(WIX_SERVICES_URL)).services || [];
       const verificados = await Promise.all(workshops.filter((w) => w.wixServiceId).map(async (workshop) => {
         const result = await requestJson(`${WIX_SERVICES_URL}?${new URLSearchParams({ serviceId: workshop.wixServiceId })}`);
         const service = result.checkedService;
@@ -88,10 +87,9 @@ export default async function render(root, ctx) {
           ? { id: service.id, name: service.name, type: service.type, hidden: service.hidden, onlineBooking: service.onlineBookingEnabled }
           : null;
       }));
-      services = [...new Map(verificados.filter(Boolean).map((service) => [service.id, service])).values()]
+      services = [...new Map([...listado, ...verificados.filter(Boolean)].map((service) => [service.id, service])).values()]
         .sort((a, b) => a.name.localeCompare(b.name, "es"));
-      if (!services.length) throw new Error("Wix no confirmó ningún servicio CLASS vinculado.");
-      toast(`${services.length} servicio(s) CLASS vinculados y sincronizados desde Wix`); await pintarCatalogo();
+      toast(`${services.length} servicio(s) CLASS sincronizados desde Wix`); await pintarCatalogo();
     }
     catch (error) { toast("No se pudieron sincronizar servicios: " + error.message, "error"); }
   }
