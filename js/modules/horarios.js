@@ -1,6 +1,6 @@
 // Módulo Horarios y docentes: asignación de clases por semana/día con docente, taller y salón.
 import { el, toast, modal, confirmar } from "../ui.js?v=3";
-import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig } from "../db.js?v=3";
+import { listar, crear, actualizar, eliminar, leerConfig, guardarConfig, listarTalleresVacacionales } from "../db.js?v=6";
 import { GRUPOS, AREAS, DOCENTES, nombreGrupo, semanasDe, diasDe, formatoRangoSemana, semanaActualInfo } from "../catalogos.js?v=5";
 
 let DOCS = DOCENTES;
@@ -9,6 +9,8 @@ export default async function render(root, ctx) {
   const cfg = await leerConfig();
   if (cfg && Array.isArray(cfg.docentes) && cfg.docentes.length) DOCS = cfg.docentes;
   if (ctx.rol !== "docente") await asegurarCorreosDocentes();
+  // Catálogo opcional: los registros antiguos siguen funcionando sin workshopId.
+  const talleresWix = await listarTalleresVacacionales();
 
   // El docente solo ve (no edita) y únicamente su propio horario.
   const soloLectura = ctx.rol === "docente";
@@ -24,7 +26,7 @@ export default async function render(root, ctx) {
     el("div", { class: "right" },
       soloLectura ? null : el("button", { class: "btn ghost", onclick: () => verDocentes() }, "Ver docentes"),
       soloLectura ? null : el("button", { class: "btn ghost", onclick: () => duplicarSemana() }, "⧉ Duplicar semana"),
-      soloLectura ? null : el("button", { class: "btn primary", onclick: () => editar(ctx, null, cargar) }, "+ Asignar clase"),
+      soloLectura ? null : el("button", { class: "btn primary", onclick: () => editar(ctx, null, cargar, talleresWix) }, "+ Asignar clase"),
     ),
   ));
 
@@ -76,7 +78,7 @@ export default async function render(root, ctx) {
       el("td", {}, d.area), el("td", {}, d.taller || ""),
       el("td", {}, el("strong", {}, d.docente || "—")), el("td", {}, d.salon || ""),
       soloLectura ? null : el("td", { class: "row-actions" },
-        el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
+        el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar, talleresWix) }, "Editar"),
         el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "🗑")),
     )));
     const cols = ["Semana", "Día", "Hora", "Grupo", "Área", "Taller/Temática", "Docente", "Salón"];
@@ -101,7 +103,7 @@ export default async function render(root, ctx) {
       el("td", { class: "row-actions" },
         el("button", { class: "btn ghost small", onclick: () => editarPlaneacion(ctx, d, cargar) }, "Planeacion"),
         soloLectura ? null : [
-          el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
+          el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar, talleresWix) }, "Editar"),
           el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "ðŸ—‘"),
         ],
       ),
@@ -127,7 +129,7 @@ export default async function render(root, ctx) {
       el("td", { class: "row-actions" },
         el("button", { class: "btn ghost small", onclick: () => editarPlaneacion(ctx, d, cargar) }, "Planeación"),
         soloLectura ? null : [
-          el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
+          el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar, talleresWix) }, "Editar"),
           el("button", { class: "btn ghost small", onclick: () => del(ctx, d, cargar) }, "Eliminar"),
         ],
       ),
@@ -177,7 +179,7 @@ export default async function render(root, ctx) {
           if (!celdas.length) return el("td", { class: "h-vacia" }, "");
           return el("td", { class: "h-celda" }, ...celdas.map((d) => el("div", {
             class: "h-clase", title: soloLectura ? "Clic para agregar planeación" : "Clic para editar",
-            onclick: soloLectura ? () => editarPlaneacion(ctx, d, cargar) : () => editar(ctx, d, cargar),
+            onclick: soloLectura ? () => editarPlaneacion(ctx, d, cargar) : () => editar(ctx, d, cargar, talleresWix),
           },
             rangoHoras(d) ? el("div", { class: "h-hora" }, "🕘 " + rangoHoras(d)) : null,
             el("div", { class: "h-area" }, d.area || "—"),
@@ -454,7 +456,7 @@ function editarPlaneacion(ctx, dato, onSave) {
   ]);
 }
 
-function editar(ctx, dato, onSave) {
+function editar(ctx, dato, onSave, talleresWix = []) {
   const SEMANAS = semanasDe(ctx.temporada);
   const DIAS = diasDe(ctx.temporada);
   const d = dato || {};
@@ -481,6 +483,7 @@ function editar(ctx, dato, onSave) {
     el("label", {}, "Día", sel("dia", DIAS)),
     el("label", {}, "Grupo", sel("grupo", GRUPOS.map((g) => g.nombre))),
     el("label", {}, "Área", sel("area", [...AREAS, "Onces"])),
+    el("label", {}, "Taller Wix", sel("workshopId", ["", ...talleresWix.filter((w) => w.active !== false).map((w) => w.id)])),
     el("label", {}, "Docente", sel("docente", ["", ...DOCS.map((x) => x.nombre)])),
     el("label", {}, "Hora inicio", hora("horaInicio")),
     el("label", {}, "Hora fin", hora("horaFin")),
@@ -492,7 +495,7 @@ function editar(ctx, dato, onSave) {
   modal(dato ? "Editar clase" : "Asignar clase", grid, [
     { texto: "Cancelar", clase: "ghost" },
     { texto: "Guardar", clase: "primary", onClick: async (dlg) => {
-      const payload = { semana: f.semana.value, dia: f.dia.value, grupo: f.grupo.value, area: f.area.value, docente: f.docente.value, docenteCorreo: correoDocente(f.docente.value), salon: f.salon.value.trim(), taller: f.taller.value.trim(), horaInicio: f.horaInicio.value, horaFin: f.horaFin.value };
+      const payload = { semana: f.semana.value, dia: f.dia.value, grupo: f.grupo.value, area: f.area.value, workshopId: f.workshopId.value, docente: f.docente.value, docenteCorreo: correoDocente(f.docente.value), salon: f.salon.value.trim(), taller: f.taller.value.trim(), horaInicio: f.horaInicio.value, horaFin: f.horaFin.value };
       try {
         if (dato) await actualizar(ctx.temporadaId, "grupos", dato.id, payload);
         else await crear(ctx.temporadaId, "grupos", payload);

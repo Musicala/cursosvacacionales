@@ -222,6 +222,22 @@ label.check input,.checks .check input{width:auto}
 .week-status.ok{border-left:5px solid var(--ok)}
 .week-status.warn{border-left:5px solid var(--warn)}
 .week-status-icon{font-size:2.2rem}
+
+/* Integración Wix Bookings (solo lectura) */
+.wix-workshop{display:grid;grid-template-columns:minmax(150px,1fr) minmax(240px,2fr) minmax(145px,1fr) auto auto auto;gap:.75rem;align-items:end;padding:1rem 0;border-bottom:1px solid var(--line,#e5e7eb)}
+.wix-workshop:last-child{border-bottom:0}
+.wix-workshop label{display:grid;gap:.35rem;font-size:.85rem;color:var(--muted,#64748b)}
+.wix-workshop input[type="text"]{width:100%}
+.wix-workshop label.check{display:flex;align-items:center;gap:.35rem;padding-bottom:.45rem}
+.wix-service-state{font-size:.88rem;padding-bottom:.35rem}
+.wix-results{margin-top:1rem}
+.wix-summary{padding:.75rem 1rem;margin:.75rem 0;border-radius:.55rem;background:#eff6ff;color:#1e40af;font-weight:600}
+.wix-day{margin-top:.75rem;border:1px solid var(--line,#e5e7eb);border-radius:.6rem;overflow:hidden}
+.wix-day h4{margin:0;padding:.7rem 1rem;background:#f8fafc}
+.wix-session{display:flex;justify-content:space-between;gap:1rem;padding:.7rem 1rem;border-top:1px solid var(--line,#e5e7eb)}
+.wix-session span{font-size:.9rem}
+.wix-status.error{padding:.8rem;border-radius:.5rem;background:#fef2f2;color:#b91c1c}
+@media(max-width:720px){.wix-workshop{grid-template-columns:1fr}.wix-session{align-items:flex-start;flex-direction:column;gap:.25rem}}
 .ruta-status{display:flex;align-items:center;gap:1rem}
 .ruta-status.ok{border-left:5px solid var(--ok)} .ruta-status.warn{border-left:5px solid var(--warn)}
 .ruta-big{font-size:2.6rem}

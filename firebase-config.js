@@ -13,6 +13,12 @@ export const firebaseConfig = {
   appId: "1:627854916940:web:579d81821f4fed394ee3e9",
 };
 
+// GitHub Pages y el servidor local no ejecutan los rewrites de Firebase Hosting.
+// Esta URL pública de la Cloud Function es segura: el token de Firebase protege
+// la llamada y la API Key de Wix permanece exclusivamente en el backend.
+export const WIX_SESSIONS_URL = "https://us-central1-vacacionales-fb909.cloudfunctions.net/wixSessions";
+export const WIX_SERVICES_URL = "https://us-central1-vacacionales-fb909.cloudfunctions.net/wixServices";
+
 // ============================================================
 //  ROLES
 //  - Admin      → ve todo, incluidas Estadísticas (ingresos, rentabilidad…).

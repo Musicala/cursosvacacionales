@@ -31,6 +31,7 @@ const MODULOS = [
   { id: "musipuntos",    nombre: "Musipuntos",     icono: "⭐", render: musipuntos },
   { id: "temporada",     nombre: "Info temporada", icono: "📅", render: temporadaInfo },
   { id: "cotizador",     nombre: "Cotizador",      icono: "🧮", render: cotizador },
+  { id: "wix",           nombre: "Configuración Wix", icono: "🔗", render: cargarWix },
   { id: "estadisticas",  nombre: "Estadísticas",   icono: "📈", render: estadisticas },
 ];
 
@@ -42,6 +43,18 @@ const MODULOS_SOLO_ADMIN = ["estadisticas"];
 
 // Etiqueta que se muestra en la barra superior.
 const NOMBRE_ROL = { admin: "Admin", asistente: "Asistente", docente: "Docente" };
+
+// La integración Wix se carga al abrir su sección: un fallo aislado de esa
+// función no debe impedir que el administrador entre al resto del aplicativo.
+async function cargarWix(root, ctx) {
+  try {
+    const { default: wix } = await import("./modules/wix.js?v=4");
+    return wix(root, ctx);
+  } catch (e) {
+    console.error("No se pudo cargar el módulo Wix", e);
+    root.append(el("div", { class: "panel error" }, "No se pudo cargar Configuración Wix: " + e.message));
+  }
+}
 
 const estado = {
   usuario: null,

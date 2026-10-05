@@ -4,6 +4,30 @@ Aplicativo web para coordinar los cursos vacacionales de Musicala: contactos e i
 inscripciones, horarios y docentes, asistencia, Musicafé (onces), ruta, materiales,
 información por temporada y estadísticas. Construido con **Firebase** (Auth + Firestore + Hosting).
 
+## Integración Wix Bookings (fase 1)
+
+La sección **Configuración Wix** crea y administra la colección central
+`vacationWorkshops`. Los horarios guardan únicamente `workshopId`; los Service ID
+de Wix se conservan una sola vez en ese catálogo. Las clases antiguas sin esa
+referencia siguen siendo verificables por compatibilidad, inferidas desde su área.
+
+La verificación semanal es solo de lectura y consulta **List Event Time Slots** de
+Wix para servicios `CLASS`. No crea reservas ni modifica sesiones.
+
+Antes de desplegar las funciones, configura la clave administrativa exclusivamente
+como secreto (no en `firebase-config.js` ni en archivos `.env` versionados):
+
+```powershell
+firebase functions:secrets:set WIX_API_KEY
+firebase deploy --only functions:wixSessions
+```
+
+La clave necesita el permiso de Wix **Read Bookings Calendar Availability** y debe
+tener acceso al Site ID configurado. El navegador se autentica con Firebase y llama
+al endpoint seguro de Cloud Functions; la clave nunca se devuelve. GitHub Pages no
+ejecuta los rewrites de Firebase Hosting, por lo que la URL de la función se
+centraliza como `WIX_SESSIONS_URL` en `firebase-config.js`.
+
 ## Características
 
 - 🔐 Login con Google restringido a correos autorizados.

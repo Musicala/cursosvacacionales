@@ -9,8 +9,12 @@
       "migracion/**"
     ],
     "rewrites": [
+      { "source": "/api/vacacionales/wix-sessions", "function": "wixSessions" },
       { "source": "**", "destination": "/index.html" }
     ]
+  },
+  "functions": {
+    "source": "functions"
   },
   "firestore": {
     "rules": "firestore.rules"

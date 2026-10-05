@@ -11,3 +11,10 @@ firebase-debug.log
 
 # Node
 node_modules/
+functions/node_modules/
+
+# Nunca versionar secretos de proveedores
+.env
+.env.*
+functions/.env
+functions/.secret.local

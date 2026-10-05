@@ -7,6 +7,7 @@
 //   temporadas/{temporadaId}/asistencia/{id}         -> registros de asistencia
 //   temporadas/{temporadaId}/musicafe/{id}           -> consumos de onces
 //   config/global                                    -> catálogos editables (precios, docentes...)
+//   vacationWorkshops/{id}                            -> catálogo central de talleres y servicio Wix
 import { db } from "./firebase.js?v=3";
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
@@ -27,6 +28,21 @@ export async function actualizarTemporada(id, patch) {
 export async function obtenerTemporada(id) {
   const d = await getDoc(doc(db, "temporadas", id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+
+// ----- Catálogo central de talleres vacacionales -----
+// El ID interno (p. ej. "musica") es lo que se guarda en los horarios.
+// El wixServiceId vive únicamente aquí y nunca se duplica por semana o día.
+const talleresCol = collection(db, "vacationWorkshops");
+
+export async function listarTalleresVacacionales() {
+  const snap = await getDocs(talleresCol);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0) || (a.name || "").localeCompare(b.name || ""));
+}
+
+export async function guardarTallerVacacional(id, data) {
+  await setDoc(doc(db, "vacationWorkshops", id), { ...data, actualizado: serverTimestamp() }, { merge: true });
 }
 
 // ----- Helpers genéricos por subcolección dentro de una temporada -----
