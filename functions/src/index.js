@@ -22,6 +22,27 @@ function sendError(res, status, message) {
   return res.status(status).json({ error: message });
 }
 
+// Secret Manager conserva exactamente el valor introducido. Al eliminar espacios
+// accidentales evitamos que un salto de línea convierta el encabezado HTTP en inválido.
+function wixHeaders(includeContentType = false) {
+  const headers = {
+    Authorization: wixApiKey.value().trim(),
+    "wix-site-id": WIX_SITE_ID,
+  };
+  if (includeContentType) headers["Content-Type"] = "application/json";
+  return headers;
+}
+
+async function wixRequestError(label, response) {
+  const detail = await response.text();
+  // No registramos encabezados ni secretos; el estado y la respuesta de Wix bastan para diagnosticar.
+  logger.error(label, {
+    status: response.status,
+    contentType: response.headers.get("content-type") || "",
+    detail: detail.slice(0, 500),
+  });
+}
+
 async function requireCoordinator(req) {
   const header = req.get("authorization") || "";
   if (!header.startsWith("Bearer ")) throw new Error("UNAUTHENTICATED");
@@ -73,16 +94,11 @@ async function listEventTimeSlots(serviceIds, from, to) {
     };
     const response = await fetch("https://www.wixapis.com/_api/service-availability/v2/time-slots/event", {
       method: "POST",
-      headers: {
-        Authorization: wixApiKey.value(),
-        "wix-site-id": WIX_SITE_ID,
-        "Content-Type": "application/json",
-      },
+      headers: wixHeaders(true),
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      const detail = await response.text();
-      logger.error("Wix Time Slots request failed", { status: response.status, detail: detail.slice(0, 500) });
+      await wixRequestError("Wix Time Slots request failed", response);
       throw new Error("WIX_REQUEST_FAILED");
     }
     const data = await response.json();
@@ -94,7 +110,7 @@ async function listEventTimeSlots(serviceIds, from, to) {
 
 async function getService(serviceId) {
   const response = await fetch(`https://www.wixapis.com/_api/bookings/v2/services/${encodeURIComponent(serviceId)}`, {
-    headers: { Authorization: wixApiKey.value(), "wix-site-id": WIX_SITE_ID },
+    headers: wixHeaders(),
   });
   if (!response.ok) return { id: serviceId, found: false, status: response.status };
   const data = await response.json();
@@ -117,10 +133,13 @@ async function listClassServices() {
   while (offset < total) {
     const response = await fetch("https://www.wixapis.com/_api/bookings/v2/services/query", {
       method: "POST",
-      headers: { Authorization: wixApiKey.value(), "wix-site-id": WIX_SITE_ID, "Content-Type": "application/json" },
+      headers: wixHeaders(true),
       body: JSON.stringify({ query: { paging: { limit, offset } } }),
     });
-    if (!response.ok) throw new Error("WIX_SERVICES_REQUEST_FAILED");
+    if (!response.ok) {
+      await wixRequestError("Wix Services query failed", response);
+      throw new Error("WIX_SERVICES_REQUEST_FAILED");
+    }
     const data = await response.json();
     const page = data.services || [];
     services.push(...page);
