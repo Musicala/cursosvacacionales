@@ -3,7 +3,7 @@
 // con desglose por estudiante. Reutiliza la misma lógica de precios que Inscripciones.
 import { el, cop, toast } from "../ui.js?v=4";
 import { obtenerTemporada } from "../db.js?v=5";
-import { semanasDetalle } from "../catalogos.js?v=4";
+import { semanasDetalle, diasDe, DIAS } from "../catalogos.js?v=5";
 import { calcularPrecio } from "./inscripciones.js?v=8";
 
 // Descuentos que el cotizador aplica AUTOMÁTICAMENTE (no como checkbox manual):
@@ -27,6 +27,7 @@ function aplicar(base, desc) {
 export default async function render(root, ctx) {
   const t = (await obtenerTemporada(ctx.temporadaId)) || ctx.temporada || { id: ctx.temporadaId };
   const detalle = semanasDetalle(t);
+  const diasTemporada = diasDe(t);
   const precios = Array.isArray(t.precios) ? t.precios : [];
   const descuentosLista = Array.isArray(t.descuentosLista) ? t.descuentosLista : [];
 
@@ -58,6 +59,7 @@ export default async function render(root, ctx) {
   const estado = {
     numEstudiantes: 1,
     semanasEst: [new Set(detalle.length ? [detalle[0].nombre] : [])], // qué semanas toma cada estudiante
+    diasPorEst: [new Map()],
     hermano: true,                    // aplicar descuento de hermano (2º en adelante)
     multiSemana: true,                // aplicar 5% por más de una semana
     manuales: new Set(),              // nombres de descuentos manuales activos
@@ -82,8 +84,11 @@ export default async function render(root, ctx) {
       while (estado.semanasEst.length < n) {
         const prev = estado.semanasEst[estado.semanasEst.length - 1];
         estado.semanasEst.push(new Set(prev || []));
+        const prevDias = estado.diasPorEst[estado.diasPorEst.length - 1];
+        estado.diasPorEst.push(new Map([...(prevDias || new Map())].map(([semana, dias]) => [semana, new Set(dias)])));
       }
       estado.semanasEst = estado.semanasEst.slice(0, n);
+      estado.diasPorEst = estado.diasPorEst.slice(0, n);
       pintarControles();
       recalcular();
     };
@@ -95,12 +100,34 @@ export default async function render(root, ctx) {
     const filas = el("div", { class: "cotz-est-list" });
     for (let i = 0; i < estado.numEstudiantes; i++) {
       const sel = estado.semanasEst[i];
-      const casillas = el("div", { class: "checks cotz-semanas" });
+      const diasSel = estado.diasPorEst[i];
+      const casillas = el("div", { class: "cotz-semana-opciones" });
       detalle.forEach((s) => {
+        const diasSemanaLista = diasTemporada.slice(0, diasSemana(s) || DIAS.length);
         const c = el("input", { type: "checkbox" });
         c.checked = sel.has(s.nombre);
-        c.onchange = () => { c.checked ? sel.add(s.nombre) : sel.delete(s.nombre); recalcular(); };
-        casillas.append(el("label", { class: "check" }, c, ` ${s.nombre} (${diasSemana(s)} días)`));
+        c.onchange = () => {
+          if (c.checked) sel.add(s.nombre);
+          else { sel.delete(s.nombre); diasSel.delete(s.nombre); }
+          pintarControles(); recalcular();
+        };
+        const expandir = sel.has(s.nombre);
+        const editorDias = expandir ? el("div", { class: "cotz-dias" },
+          ...diasSemanaLista.map((dia) => {
+            const cd = el("input", { type: "checkbox" });
+            cd.checked = !diasSel.has(s.nombre) || diasSel.get(s.nombre).has(dia);
+            cd.onchange = () => {
+              const elegidos = new Set(diasSel.has(s.nombre) ? diasSel.get(s.nombre) : diasSemanaLista);
+              cd.checked ? elegidos.add(dia) : elegidos.delete(dia);
+              if (elegidos.size === diasSemanaLista.length) diasSel.delete(s.nombre);
+              else diasSel.set(s.nombre, elegidos);
+              recalcular();
+            };
+            return el("label", { class: "check" }, cd, ` ${dia}`);
+          })) : null;
+        casillas.append(el("div", { class: "cotz-semana" },
+          el("label", { class: "check cotz-semana-principal" }, c, ` ${s.nombre} (${diasSemana(s)} días)`),
+          editorDias));
       });
       filas.append(el("div", { class: "cotz-est-row" },
         el("span", { class: "sem-label" }, `Estudiante ${i + 1}`), casillas));
@@ -150,8 +177,11 @@ export default async function render(root, ctx) {
 
       // Precio base de CADA semana por separado (para poder desglosarlo).
       const semInfo = semanasSel.map((s) => {
-        const r = calcularPrecio({ semanas: [s.nombre], detalleSemanas: detalle, precios, descuentosLista: [], descuentoIds: [] });
-        return { nombre: s.nombre, dias: diasSemana(s), base: r.valorBase };
+        const diasCompleta = Number(s.dias) || 5;
+        const elegidos = estado.diasPorEst[i].get(s.nombre);
+        const dias = elegidos ? elegidos.size : diasCompleta;
+        const r = calcularPrecio({ semanas: [s.nombre], diasPorSemana: elegidos ? { [s.nombre]: [...elegidos] } : {}, detalleSemanas: [{ ...s, dias: dias || diasSemana(s) }], precios, descuentosLista: [], descuentoIds: [] });
+        return { nombre: s.nombre, dias, base: r.valorBase };
       });
       const valorBase = semInfo.reduce((a, s) => a + s.base, 0);
       const totalDias = semInfo.reduce((a, s) => a + s.dias, 0);
@@ -190,7 +220,10 @@ export default async function render(root, ctx) {
         repartido += s.conDesc;
       });
 
-      const detalleSem = nSem ? `${semanasSel.map((s) => s.nombre).join(", ")} · ${totalDias} días` : "sin semanas seleccionadas";
+      const detalleSem = nSem ? `${semanasSel.map((s) => {
+      const dias = semInfo.find((x) => x.nombre === s.nombre)?.dias ?? 0;
+        return `${s.nombre}${dias === diasSemana(s) ? "" : ` (${dias} día${dias === 1 ? "" : "s"})`}`;
+      }).join(", ")} · ${totalDias} días · ${horas} horas` : "sin semanas seleccionadas";
 
       const filas = el("div", { class: "cotz-lineas" });
       if (nSem) {
@@ -205,9 +238,9 @@ export default async function render(root, ctx) {
         const porDia = totalDias ? Math.round(subtotal / totalDias) : 0;
         const porHora = horas ? Math.round(subtotal / horas) : 0;
         filas.append(el("div", { class: "muted small cotz-unitario" },
-          `≈ ${cop(porDia)} por día · ${cop(porHora)} por hora`));
+          `≈ ${cop(porDia)} por día · ${cop(porHora)} por hora${horas === 16 ? " · Plan de 16 horas" : ""}`));
       } else {
-        filas.append(el("div", { class: "muted small" }, "Marca al menos una semana."));
+        filas.append(el("div", { class: "muted small" }, "Marca una semana y elige los días que asistirá."));
       }
 
       bloques.append(el("div", { class: "cotz-est-card" },
@@ -231,7 +264,13 @@ export default async function render(root, ctx) {
     const lineas = [];
     for (let i = 0; i < estado.numEstudiantes; i++) {
       const semanas = detalle.filter((s) => estado.semanasEst[i].has(s.nombre)).map((s) => s.nombre);
-      lineas.push(`Estudiante ${i + 1}: ${semanas.length ? semanas.join(", ") : "sin semanas"}`);
+      const diasTexto = semanas.map((semana) => {
+        const dias = estado.diasPorEst[i].get(semana);
+        return dias && dias.size < diasSemana(detalle.find((s) => s.nombre === semana))
+          ? `${semana} (${dias.size} días: ${[...dias].join(", ")})`
+          : semana;
+      }).join(", ");
+      lineas.push(`Estudiante ${i + 1}: ${semanas.length ? diasTexto : "sin semanas"}`);
     }
     const txt = [
       "Cotización cursos vacacionales Musicala",

@@ -289,6 +289,10 @@ label.check input,.checks .check input{width:auto}
 .cotz-est-row{display:grid;grid-template-columns:130px 1fr;gap:.5rem;align-items:start}
 .cotz-est-row .sem-label{font-weight:600;padding-top:.15rem}
 .cotz-semanas{gap:.3rem .9rem}
+.cotz-semana-opciones{display:flex;flex-direction:column;gap:.35rem}
+.cotz-semana-principal{font-weight:600}
+.cotz-dias{display:flex;flex-wrap:wrap;gap:.25rem .65rem;margin:.25rem 0 .35rem 1.5rem;padding:.45rem .6rem;border-left:2px solid var(--line);background:#faf8ff;border-radius:0 8px 8px 0}
+.cotz-dias .check{font-size:.88rem}
 .cotz-est-sub{margin:-.3rem 0 .5rem}
 .cotz-unitario{margin-top:.4rem;font-style:italic}
 .cotz-desglose{display:flex;flex-direction:column;gap:.8rem}
