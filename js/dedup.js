@@ -32,7 +32,8 @@ function mismosTokens(a, b) {
 }
 
 // Busca un duplicado de `nuevo` dentro de `existentes`. Devuelve el existente o null.
-// Coincide si: mismo teléfono, o mismo correo, o mismo nombre (igual o mismos apellidos/nombres).
+// Coincide si: mismo identificador de origen o mismo estudiante. El teléfono y
+// el correo por sí solos no bastan cuando hay menores: hermanos pueden compartirlos.
 export function buscarDuplicado(nuevo, existentes) {
   const celN = normCel(nuevo.celular);
   const corrN = normCorreo(nuevo.correo);
@@ -42,12 +43,12 @@ export function buscarDuplicado(nuevo, existentes) {
   for (const e of existentes) {
     // Mismo origen exacto (id en base general)
     if (nuevo.sourceId && e.sourceId && nuevo.sourceId === e.sourceId) return e;
-    // Teléfono (al menos 7 dígitos para evitar falsos positivos)
-    if (celN && celN.length >= 7 && normCel(e.celular) === celN) return e;
-    // Correo
-    if (corrN && normCorreo(e.correo) === corrN) return e;
     // Nombre idéntico o con los mismos nombres/apellidos en otro orden
     if (nomN && (normTexto(e.estudiante) === nomN || mismosTokens(tokN, tokensNombre(e.estudiante)))) return e;
+    // Cuando no hay estudiante sí se usa teléfono/correo para no multiplicar
+    // registros incompletos sin una identidad individual que los distinga.
+    if (!nomN && celN && celN.length >= 7 && normCel(e.celular) === celN) return e;
+    if (!nomN && corrN && normCorreo(e.correo) === corrN) return e;
   }
   return null;
 }

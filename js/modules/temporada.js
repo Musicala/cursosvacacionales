@@ -288,6 +288,10 @@ export function formularioTemporada(t, onSave) {
         mediosPago: [...new Set(mediosPago.map((m) => m.trim()).filter(Boolean))],
         descuentos: descuentos.value.trim(),
         notas: notas.value.trim(),
+        // La ruta usa este umbral en su propio módulo. Al crear desde una
+        // plantilla se conserva; al editar una temporada antigua ausente no
+        // se escribe un valor nuevo por accidente.
+        ...(d.rutaMinimo != null && d.rutaMinimo !== "" && Number.isFinite(Number(d.rutaMinimo)) ? { rutaMinimo: Number(d.rutaMinimo) } : {}),
       };
       const ok = await onSave(datos);
       if (ok) dlg.close();

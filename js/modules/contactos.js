@@ -1,6 +1,6 @@
 // Módulo Contactos: interesados, antiguos (re-contacto), seguimiento.
 import { el, esc, toast, modal, confirmar, fmtCorta } from "../ui.js?v=3";
-import { listar, crear, actualizar, eliminar } from "../db.js?v=3";
+import { listar, crear, actualizar, eliminar, listarTemporadas } from "../db.js?v=3";
 import { ESTADOS_CONTACTO, CANALES, grupoPorEdad, GRUPOS, nombreGrupo, semanasDetalle } from "../catalogos.js?v=5";
 import { estaConfigurada, onAuthBG, loginBG, usuarioBG, traerVacacionales } from "../base-general.js?v=3";
 import { buscarDuplicado } from "../dedup.js?v=3";
@@ -9,6 +9,7 @@ export default async function render(root, ctx) {
   root.append(el("div", { class: "panel-head" },
     el("h2", {}, "📇 Contactos"),
     el("div", { class: "right" },
+      el("button", { class: "btn ghost", onclick: () => traerDeOtraTemporada(ctx, cargar) }, "↗ Traer de otra temporada"),
       el("button", { class: "btn primary", onclick: () => editar(ctx, null, cargar) }, "+ Nuevo contacto"),
     ),
   ));
@@ -121,7 +122,9 @@ export default async function render(root, ctx) {
         el("td", {}, (d.semanas || []).join(", ")),
         el("td", {}, d.ruta ? el("span", { class: "pill", title: "Requiere ruta" }, "🚌 Sí") : ""),
         el("td", {}, d.direccion || ""),
-        el("td", {}, d.origen || ""),
+        el("td", {}, d.temporadaOrigenNombre
+          ? el("span", { class: "small", title: `Tomado de ${d.temporadaOrigenNombre}` }, `Anterior: ${d.temporadaOrigenNombre}`)
+          : (d.origen || "")),
         el("td", { class: "row-actions" },
           el("button", { class: "btn small", onclick: () => registrarGestion(ctx, d, cargar) }, "Contactado"),
           el("button", { class: "btn ghost small", onclick: () => editar(ctx, d, cargar) }, "Editar"),
@@ -135,6 +138,169 @@ export default async function render(root, ctx) {
   fEstado.onchange = pintar;
   fQ.oninput = pintar;
   await cargar();
+}
+
+// Permite reutilizar perfiles de campañas anteriores sin mezclar las bases
+// completas de temporadas ni arrastrar condiciones comerciales ya vencidas.
+async function traerDeOtraTemporada(ctx, onSave) {
+  let temporadas;
+  try {
+    temporadas = (await listarTemporadas()).filter((t) => t.id !== ctx.temporadaId);
+  } catch (e) {
+    toast("No se pudieron cargar las temporadas: " + e.message, "error");
+    return;
+  }
+  if (!temporadas.length) {
+    toast("Aún no hay otra temporada desde la cual traer contactos", "error");
+    return;
+  }
+
+  const origen = el("select", {}, ...temporadas.map((t) => el("option", { value: t.id }, t.nombre || t.id)));
+  const busqueda = el("input", { type: "search", placeholder: "Buscar estudiante, acudiente o celular…" });
+  const resultados = el("div", { class: "muted" }, "Elige una temporada para ver sus contactos.");
+  const contenido = el("div", { class: "contact-picker" },
+    el("label", {}, "Temporada anterior", origen),
+    el("label", { class: "contact-picker-search" }, "Buscar", busqueda),
+    el("p", { class: "muted small" }, "Al agregar, se crea un contacto en esta temporada con estado Interesado. No se copian inscripciones, pagos, semanas ni descuentos anteriores."),
+    resultados,
+  );
+  const dlg = modal("Traer contacto de otra temporada", contenido, [{ texto: "Cerrar", clase: "ghost" }]);
+  let contactosOrigen = [];
+  const seleccionados = new Set();
+
+  async function cargarOrigen() {
+    resultados.innerHTML = "";
+    resultados.append(el("div", { class: "muted" }, "Cargando contactos…"));
+    try {
+      contactosOrigen = await listar(origen.value, "contactos");
+      seleccionados.clear();
+      pintarResultados();
+    } catch (e) {
+      resultados.innerHTML = "";
+      resultados.append(el("div", { class: "empty" }, "No se pudieron leer los contactos: " + e.message));
+    }
+  }
+
+  function pintarResultados() {
+    const q = busqueda.value.trim().toLowerCase();
+    const encontrados = contactosOrigen.filter((c) => !q || [c.estudiante, c.acudiente, c.celular, c.correo].join(" ").toLowerCase().includes(q));
+    resultados.innerHTML = "";
+    resultados.append(el("div", { class: "muted small" }, `${encontrados.length} contacto(s) en la temporada seleccionada`));
+    if (!encontrados.length) {
+      resultados.append(el("div", { class: "empty" }, "No encontramos contactos con esa búsqueda."));
+      return;
+    }
+    const fuente = temporadas.find((t) => t.id === origen.value);
+    const marcarTodos = el("input", { type: "checkbox" });
+    marcarTodos.checked = encontrados.length > 0 && encontrados.every((c) => seleccionados.has(c.id));
+    marcarTodos.onchange = () => {
+      encontrados.forEach((c) => marcarTodos.checked ? seleccionados.add(c.id) : seleccionados.delete(c.id));
+      pintarResultados();
+    };
+    const botonTraer = el("button", { class: "btn primary small", onclick: async (e) => {
+      const boton = e.currentTarget;
+      const elegidos = encontrados.filter((c) => seleccionados.has(c.id));
+      if (!elegidos.length) { toast("Marca al menos un contacto", "error"); return; }
+      boton.disabled = true;
+      try {
+        const actuales = await listar(ctx.temporadaId, "contactos");
+        const nuevos = [];
+        let omitidos = 0;
+        elegidos.forEach((contacto) => {
+          if (yaEstaEnTemporada(contacto, actuales, origen.value) || buscarDuplicado(contacto, [...actuales, ...nuevos])) omitidos += 1;
+          else nuevos.push(contacto);
+        });
+        for (let i = 0; i < nuevos.length; i += 25) {
+          boton.textContent = `Trayendo ${Math.min(i + 25, nuevos.length)}/${nuevos.length}…`;
+          await Promise.all(nuevos.slice(i, i + 25).map((contacto) => crear(ctx.temporadaId, "contactos", perfilParaNuevaTemporada(contacto, fuente))));
+        }
+        seleccionados.clear();
+        onSave && onSave();
+        toast(`${nuevos.length} contacto(s) agregado(s) como interesado${omitidos ? ` · ${omitidos} ya estaba(n) en esta temporada` : ""}`);
+        await cargarOrigen();
+      } catch (error) {
+        toast("Error: " + error.message, "error");
+      } finally {
+        boton.disabled = false;
+      }
+    } }, "Traer seleccionados");
+    resultados.append(el("div", { class: "contact-picker-toolbar" },
+      el("label", { class: "chk" }, marcarTodos, " Seleccionar todos los resultados"),
+      el("div", { class: "right" }, botonTraer),
+    ));
+    const lista = el("div", { class: "contact-picker-list" });
+    encontrados.forEach((contacto) => {
+      const marcado = el("input", { type: "checkbox" });
+      marcado.checked = seleccionados.has(contacto.id);
+      marcado.onchange = () => {
+        if (marcado.checked) seleccionados.add(contacto.id);
+        else seleccionados.delete(contacto.id);
+        pintarResultados();
+      };
+      lista.append(el("div", { class: "contact-picker-row" },
+        marcado,
+        el("div", { class: "grow" },
+          el("strong", {}, contacto.estudiante || contacto.acudiente || "Sin nombre"),
+          el("div", { class: "muted small" }, [contacto.acudiente, contacto.celular, contacto.estado].filter(Boolean).join(" · "))),
+        el("button", { class: "btn small", onclick: async (e) => {
+          const boton = e.currentTarget;
+          boton.disabled = true;
+          try {
+            const actuales = await listar(ctx.temporadaId, "contactos");
+            if (yaEstaEnTemporada(contacto, actuales, origen.value) || buscarDuplicado(contacto, actuales)) {
+              toast("Ese contacto ya está en esta temporada", "error");
+              return;
+            }
+            await crear(ctx.temporadaId, "contactos", perfilParaNuevaTemporada(contacto, fuente));
+            toast(`${contacto.estudiante || "Contacto"} agregado como interesado`);
+            onSave && onSave();
+            await cargarOrigen();
+          } catch (error) {
+            toast("Error: " + error.message, "error");
+          } finally {
+            boton.disabled = false;
+          }
+        } }, "Agregar como interesado"),
+      ));
+    });
+    resultados.append(lista);
+  }
+
+  origen.onchange = cargarOrigen;
+  busqueda.oninput = pintarResultados;
+  await cargarOrigen();
+  return dlg;
+}
+
+function perfilParaNuevaTemporada(contacto, temporada) {
+  const historial = Array.isArray(contacto.historialTemporadas) ? contacto.historialTemporadas : [];
+  const origen = { temporadaId: temporada.id, temporadaNombre: temporada.nombre || temporada.id, contactoId: contacto.id };
+  const yaRelacionado = historial.some((h) => h.temporadaId === origen.temporadaId && h.contactoId === origen.contactoId);
+  return {
+    estudiante: contacto.estudiante || "",
+    edad: contacto.edad ?? null,
+    acudiente: contacto.acudiente || "",
+    celular: contacto.celular || "",
+    correo: contacto.correo || "",
+    sourceId: contacto.sourceId || "",
+    grupo: contacto.grupo || "",
+    calendario: contacto.calendario || "",
+    ruta: !!contacto.ruta,
+    direccion: contacto.direccion || "",
+    estado: "Interesado",
+    origen: "Antiguo",
+    comentario: `Contacto recuperado de ${origen.temporadaNombre}.`,
+    temporadaOrigenId: origen.temporadaId,
+    temporadaOrigenNombre: origen.temporadaNombre,
+    contactoOrigenId: origen.contactoId,
+    historialTemporadas: yaRelacionado ? historial : [...historial, origen],
+    semanas: [],
+    descuentoIds: [],
+  };
+}
+
+function yaEstaEnTemporada(contacto, actuales, temporadaOrigenId) {
+  return actuales.some((actual) => actual.temporadaOrigenId === temporadaOrigenId && actual.contactoOrigenId === contacto.id);
 }
 
 function slug(s) { return (s || "").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, ""); }

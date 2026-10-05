@@ -1,11 +1,11 @@
 import { onAuth, login, logout, resultadoRedirect } from "./firebase.js?v=4";
 import { rolDeCorreo } from "../firebase-config.js?v=5";
-import { $, el, toast, fmtCorta } from "./ui.js?v=4";
+import { $, el, toast, fmtCorta, modal } from "./ui.js?v=4";
 import { listarTemporadas, crearTemporada } from "./db.js?v=5";
 
 import dashboard from "./modules/dashboard.js?v=7";
 import estadisticas from "./modules/estadisticas.js?v=7";
-import contactos from "./modules/contactos.js?v=11";
+import contactos from "./modules/contactos.js?v=13";
 import inscripciones from "./modules/inscripciones.js?v=8";
 import horarios from "./modules/horarios.js?v=8";
 import asistencia from "./modules/asistencia.js?v=6";
@@ -13,7 +13,7 @@ import musicafe from "./modules/musicafe.js?v=6";
 import ruta from "./modules/ruta.js?v=4";
 import materiales from "./modules/materiales.js?v=4";
 import musipuntos from "./modules/musipuntos.js?v=4";
-import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=5";
+import temporadaInfo, { formularioTemporada } from "./modules/temporada.js?v=6";
 import cotizador from "./modules/cotizador.js?v=6";
 import { conectarConCredencial } from "./base-general.js?v=4";
 import { leerConfig } from "./db.js?v=5";
@@ -208,6 +208,13 @@ function construirShell() {
       class: "side-link", "data-mod": m.id,
       onclick: () => { navegar(m.id); cerrarMenu(); },
     }, el("span", { class: "ico" }, m.icono), el("span", {}, m.nombre))),
+    el("a", {
+      class: "side-link support-link",
+      href: "https://musicalaescuela.github.io/herramientaderegulacion/",
+      target: "_blank",
+      rel: "noopener noreferrer",
+      "aria-label": "Abrir primeros auxilios emocionales en una pestaña nueva",
+    }, el("span", { class: "ico" }, "💜"), el("span", {}, "Primeros auxilios emocionales")),
   );
 
   const selTemp = el("select", { class: "sel-temp", onchange: (e) => {
@@ -256,8 +263,7 @@ function cerrarMenu() {
 }
 
 function nuevaTemporada() {
-  // Formulario compartido con el módulo "Info temporada" (nombre, fechas, etc.)
-  formularioTemporada(null, async (datos) => {
+  const abrirFormulario = (plantilla = null) => formularioTemporada(plantilla, async (datos) => {
     const id = (datos.nombre || "").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
     if (!id) { toast("Ponle un nombre a la temporada", "error"); return false; }
     if (estado.temporadas.find((t) => t.id === id)) { toast("Ya existe una temporada con ese nombre", "error"); return false; }
@@ -272,6 +278,44 @@ function nuevaTemporada() {
     toast("Temporada creada");
     return true;
   });
+
+  if (!estado.temporadas.length) {
+    abrirFormulario();
+    return;
+  }
+
+  const origen = el("select", {},
+    el("option", { value: "" }, "Crear sin copiar datos"),
+    ...estado.temporadas.map((t) => el("option", { value: t.id }, t.nombre || t.id)),
+  );
+  modal("Nueva temporada", el("div", {},
+    el("p", {}, "Puedes iniciar desde cero o copiar la configuración de una temporada anterior."),
+    el("label", { class: "block-label" }, "Copiar configuración de", origen),
+    el("p", { class: "muted small" }, "Se copiarán precios, descuentos, medios de pago, ruta, días y número de semanas. Las fechas, el nombre y los datos de estudiantes no se copiarán."),
+  ), [
+    { texto: "Cancelar", clase: "ghost" },
+    { texto: "Continuar", clase: "primary", onClick: (dlg) => {
+      const fuente = estado.temporadas.find((t) => t.id === origen.value);
+      dlg.close();
+      abrirFormulario(fuente ? plantillaDeTemporada(fuente) : null);
+    } },
+  ]);
+}
+
+// Solo lleva configuraciones reutilizables al formulario de una temporada nueva.
+// No se trasladan fechas ni información operativa de estudiantes, pagos o clases.
+function plantillaDeTemporada(t) {
+  return {
+    valorRuta: t.valorRuta || 0,
+    rutaMinimo: t.rutaMinimo || 0,
+    numSemanas: t.numSemanas,
+    dias: Array.isArray(t.dias) ? [...t.dias] : undefined,
+    precios: Array.isArray(t.precios) ? t.precios.map((p) => ({ ...p })) : undefined,
+    descuentosLista: Array.isArray(t.descuentosLista) ? t.descuentosLista.map((d) => ({ ...d })) : undefined,
+    mediosPago: Array.isArray(t.mediosPago) ? [...t.mediosPago] : undefined,
+    descuentos: t.descuentos || "",
+    notas: t.notas || "",
+  };
 }
 
 // ---------- Router ----------

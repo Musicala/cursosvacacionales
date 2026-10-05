@@ -270,6 +270,15 @@ label.check input,.checks .check input{width:auto}
 .precio-row{display:grid;grid-template-columns:1fr 130px auto;gap:.5rem;align-items:center}
 .lista-edit{display:flex;flex-direction:column;gap:.4rem;margin:.4rem 0}
 .lista-edit-row{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center}
+.contact-picker{display:flex;flex-direction:column;gap:.85rem}
+.contact-picker-search input{width:100%;box-sizing:border-box}
+.contact-picker-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.7rem;flex-wrap:wrap}
+.contact-picker-toolbar .chk{font-size:.88rem}
+.contact-picker-list{display:flex;flex-direction:column;gap:.5rem}
+.contact-picker-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.7rem;align-items:center;
+  padding:.65rem .75rem;border:1px solid var(--line);border-radius:10px;background:#fff}
+.contact-picker-row input[type="checkbox"]{width:auto;margin:0}
+.contact-picker-row .btn{white-space:nowrap}
 .block-label{display:block;margin-top:.8rem}
 .block-label textarea{width:100%;margin-top:.25rem}
 .nota-texto{white-space:pre-wrap;background:#faf8ff;border:1px solid var(--line);border-radius:9px;padding:.7rem .9rem;line-height:1.5}
@@ -334,6 +343,8 @@ label.check input,.checks .check input{width:auto}
   .prod-row{grid-template-columns:1fr auto 64px}
   .precio-row{grid-template-columns:1fr 100px auto}
   .precio-row4{grid-template-columns:1fr 1fr;gap:.4rem}
+  .contact-picker-row{grid-template-columns:auto minmax(0,1fr)}
+  .contact-picker-row .btn{grid-column:1/-1;width:100%}
   .bar-row{grid-template-columns:100px 1fr 34px}
   /* Horario: más compacto y desplazable */
   .table.horario{font-size:.8rem}
