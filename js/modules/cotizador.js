@@ -60,6 +60,7 @@ export default async function render(root, ctx) {
     numEstudiantes: 1,
     semanasEst: [new Set(detalle.length ? [detalle[0].nombre] : [])], // qué semanas toma cada estudiante
     diasPorEst: [new Map()],
+    cantidadesEst: [new Map()],
     hermano: true,                    // aplicar descuento de hermano (2º en adelante)
     multiSemana: true,                // aplicar 5% por más de una semana
     manuales: new Set(),              // nombres de descuentos manuales activos
@@ -86,9 +87,11 @@ export default async function render(root, ctx) {
         estado.semanasEst.push(new Set(prev || []));
         const prevDias = estado.diasPorEst[estado.diasPorEst.length - 1];
         estado.diasPorEst.push(new Map([...(prevDias || new Map())].map(([semana, dias]) => [semana, new Set(dias)])));
+        estado.cantidadesEst.push(new Map(estado.cantidadesEst[estado.cantidadesEst.length - 1]));
       }
       estado.semanasEst = estado.semanasEst.slice(0, n);
       estado.diasPorEst = estado.diasPorEst.slice(0, n);
+      estado.cantidadesEst = estado.cantidadesEst.slice(0, n);
       pintarControles();
       recalcular();
     };
@@ -108,25 +111,37 @@ export default async function render(root, ctx) {
         c.checked = sel.has(s.nombre);
         c.onchange = () => {
           if (c.checked) sel.add(s.nombre);
-          else { sel.delete(s.nombre); diasSel.delete(s.nombre); }
+          else { sel.delete(s.nombre); diasSel.delete(s.nombre); estado.cantidadesEst[i].delete(s.nombre); }
           pintarControles(); recalcular();
         };
         const expandir = sel.has(s.nombre);
+        const cantidad = el("select", { "aria-label": `Días a cotizar de ${s.nombre}, estudiante ${i + 1}` },
+          ...Array.from({ length: diasSemana(s) }, (_, j) => el("option", { value: String(j + 1) },
+            `${j + 1} día${j ? "s" : ""} · ${(j + 1) * 4} horas`)));
+        cantidad.value = String(estado.cantidadesEst[i].get(s.nombre) ?? diasSel.get(s.nombre)?.size ?? diasSemana(s));
+        cantidad.onchange = () => {
+          estado.cantidadesEst[i].set(s.nombre, Number(cantidad.value));
+          diasSel.delete(s.nombre);
+          pintarControles(); recalcular();
+        };
         const editorDias = expandir ? el("div", { class: "cotz-dias" },
           ...diasSemanaLista.map((dia) => {
             const cd = el("input", { type: "checkbox" });
-            cd.checked = !diasSel.has(s.nombre) || diasSel.get(s.nombre).has(dia);
+            cd.checked = !estado.cantidadesEst[i].has(s.nombre) && (!diasSel.has(s.nombre) || diasSel.get(s.nombre).has(dia));
             cd.onchange = () => {
-              const elegidos = new Set(diasSel.has(s.nombre) ? diasSel.get(s.nombre) : diasSemanaLista);
+              const elegidos = new Set(estado.cantidadesEst[i].has(s.nombre) ? [] : diasSel.has(s.nombre) ? diasSel.get(s.nombre) : diasSemanaLista);
+              estado.cantidadesEst[i].delete(s.nombre);
               cd.checked ? elegidos.add(dia) : elegidos.delete(dia);
               if (elegidos.size === diasSemanaLista.length) diasSel.delete(s.nombre);
               else diasSel.set(s.nombre, elegidos);
-              recalcular();
+              pintarControles(); recalcular();
             };
             return el("label", { class: "check" }, cd, ` ${dia}`);
           })) : null;
         casillas.append(el("div", { class: "cotz-semana" },
           el("label", { class: "check cotz-semana-principal" }, c, ` ${s.nombre} (${diasSemana(s)} días)`),
+          expandir ? el("label", {}, "Cantidad de días a cotizar", cantidad) : null,
+          expandir ? el("p", { class: "muted small" }, "Puedes cotizar solo la cantidad o marcar días específicos abajo. Cada día equivale a 4 horas.") : null,
           editorDias));
       });
       filas.append(el("div", { class: "cotz-est-row" },
@@ -173,14 +188,14 @@ export default async function render(root, ctx) {
       // Semanas elegidas, en el orden en que aparecen en la temporada.
       const sel = estado.semanasEst[i];
       const semanasSel = detalle.filter((s) => sel.has(s.nombre));
-      const nSem = semanasSel.length;
+      const nSem = semanasSel.filter((s) => (estado.cantidadesEst[i].get(s.nombre) ?? estado.diasPorEst[i].get(s.nombre)?.size ?? diasSemana(s)) > 0).length;
 
       // Precio base de CADA semana por separado (para poder desglosarlo).
       const semInfo = semanasSel.map((s) => {
         const diasCompleta = Number(s.dias) || 5;
         const elegidos = estado.diasPorEst[i].get(s.nombre);
-        const dias = elegidos ? elegidos.size : diasCompleta;
-        const r = calcularPrecio({ semanas: [s.nombre], diasPorSemana: elegidos ? { [s.nombre]: [...elegidos] } : {}, detalleSemanas: [{ ...s, dias: dias || diasSemana(s) }], precios, descuentosLista: [], descuentoIds: [] });
+        const dias = estado.cantidadesEst[i].get(s.nombre) ?? (elegidos ? elegidos.size : diasCompleta);
+        const r = calcularPrecio({ semanas: [s.nombre], diasPorSemana: { [s.nombre]: Array.from({ length: dias }, (_, j) => j) }, detalleSemanas: [s], precios, descuentosLista: [], descuentoIds: [] });
         return { nombre: s.nombre, dias, base: r.valorBase };
       });
       const valorBase = semInfo.reduce((a, s) => a + s.base, 0);
@@ -265,6 +280,8 @@ export default async function render(root, ctx) {
     for (let i = 0; i < estado.numEstudiantes; i++) {
       const semanas = detalle.filter((s) => estado.semanasEst[i].has(s.nombre)).map((s) => s.nombre);
       const diasTexto = semanas.map((semana) => {
+        const cantidad = estado.cantidadesEst[i].get(semana);
+        if (cantidad != null) return `${semana} (${cantidad} día(s) · ${cantidad * 4} horas; días por definir)`;
         const dias = estado.diasPorEst[i].get(semana);
         return dias && dias.size < diasSemana(detalle.find((s) => s.nombre === semana))
           ? `${semana} (${dias.size} días: ${[...dias].join(", ")})`
