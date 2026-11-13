@@ -22,6 +22,8 @@ export default async function render(root, ctx) {
   const fEstado = el("select", {});
   fEstado.append(el("option", { value: "" }, "Todos los estados"));
   ESTADOS_CONTACTO.forEach((s) => fEstado.append(el("option", { value: s }, s)));
+  const fIntensivos = el("input", { type: "checkbox" });
+  filtros.append(el("label", { class: "chk" }, fIntensivos, "Solo interesados en Intensivos"));
   const fQ = el("input", { type: "text", placeholder: "Buscar nombre, acudiente, celular…" });
   filtros.append(
     el("label", {}, "Estado", fEstado,
@@ -88,6 +90,7 @@ export default async function render(root, ctx) {
     const q = fQ.value.trim().toLowerCase();
     const est = fEstado.value;
     const filas = datos.filter((d) => {
+      if (fIntensivos.checked && !d.interesIntensivos) return false;
       if (est && d.estado !== est) return false;
       if (q) {
         const blob = [d.estudiante, d.acudiente, d.celular, d.correo, d.direccion].join(" ").toLowerCase();
@@ -112,7 +115,8 @@ export default async function render(root, ctx) {
     const tb = el("tbody", {});
     filas.forEach((d) => {
       tb.append(el("tr", {},
-        el("td", {}, el("strong", {}, d.estudiante || "—")),
+        el("td", {}, el("strong", {}, d.estudiante || "—"),
+          d.interesIntensivos ? el("div", {}, el("span", { class: "pill" }, "Intensivos")) : null),
         el("td", {}, d.edad ?? ""),
         el("td", {}, d.acudiente || ""),
         el("td", {}, d.celular || ""),
@@ -136,6 +140,7 @@ export default async function render(root, ctx) {
     cont.append(el("div", { class: "table-wrap" }, tabla));
   }
   fEstado.onchange = pintar;
+  fIntensivos.onchange = pintar;
   fQ.oninput = pintar;
   await cargar();
 }
@@ -418,6 +423,8 @@ function editar(ctx, dato, onSave) {
   });
 
   // ¿Requiere ruta? (queda visible en el listado y suma en el módulo Ruta).
+  const interesIntensivos = el("input", { type: "checkbox" });
+  interesIntensivos.checked = !!d.interesIntensivos;
   const ruta = el("input", { type: "checkbox" });
   if (d.ruta) ruta.checked = true;
 
@@ -446,6 +453,7 @@ function editar(ctx, dato, onSave) {
     estadoConAyuda,
     campo("calendario", "Calendario", { tag: "select", opciones: ["", "Calendario A", "Calendario B"] }),
     campo("origen", "Origen", { tag: "select", opciones: ["", "WhatsApp", "Instagram", "Facebook", "Referido", "Antiguo", "Otro"] }),
+    el("label", { class: "chk full" }, interesIntensivos, "Interés en Intensivos"),
     el("label", { class: "full" }, "Semanas de interés", semanas),
     el("label", { class: "chk full" }, ruta, " Requiere ruta"),
     campo("direccion", "Dirección / barrio para ruta", { full: true, ph: "Dirección, barrio o punto de recogida" }),
@@ -475,6 +483,7 @@ function editar(ctx, dato, onSave) {
         origen: f.origen.value,
         comentario: f.comentario.value.trim(),
         ruta: ruta.checked,
+        interesIntensivos: interesIntensivos.checked,
         direccion: f.direccion.value.trim(),
         descuentoIds: [...descuentosWrap.querySelectorAll("input:checked")].map((c) => c.value),
         semanas: [...semanas.querySelectorAll("input:checked")].map((c) => c.value),
