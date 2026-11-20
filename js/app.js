@@ -60,7 +60,7 @@ const estado = {
   usuario: null,
   rol: "admin",          // "admin" | "asistente" | "docente"
   docente: null,         // registro del docente si rol === "docente"
-  temporadaId: localStorage.getItem("temporadaId") || null,
+  temporadaId: null,
   temporadas: [],
   moduloActivo: "dashboard",
 };
@@ -174,9 +174,7 @@ async function iniciarApp() {
         el("button", { class: "btn ghost", onclick: () => logout() }, "Salir"))));
     return;
   }
-  if (!estado.temporadaId || !estado.temporadas.find((t) => t.id === estado.temporadaId)) {
-    estado.temporadaId = estado.temporadas[0].id;
-  }
+  estado.temporadaId = estado.temporadas[0].id;
   construirShell();
   navegar(estado.moduloActivo);
 
@@ -219,7 +217,6 @@ function construirShell() {
 
   const selTemp = el("select", { class: "sel-temp", onchange: (e) => {
     estado.temporadaId = e.target.value;
-    localStorage.setItem("temporadaId", estado.temporadaId);
     navegar(estado.moduloActivo);
   } });
   estado.temporadas.forEach((t) => {
@@ -272,7 +269,6 @@ function nuevaTemporada() {
     await crearTemporada(id, { ...datos, orden, activa: true });
     estado.temporadas = await listarTemporadas();
     estado.temporadaId = id;
-    localStorage.setItem("temporadaId", id);
     construirShell();
     navegar("temporada");
     toast("Temporada creada");
